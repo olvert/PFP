@@ -1,8 +1,10 @@
 module Main where
 
-import Data.List
+import Data.List hiding (partition)
 import System.Random
 import Criterion.Main
+import Control.Parallel
+import Utils
 
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
 -- I suspect it comes from Bryan O'Sullivan, author of Criterion
@@ -24,9 +26,21 @@ resamples k xs =
     take (length xs - k) $
     zipWith (++) (inits xs) (map (drop k) (tails xs))
 
+-- | Parallel map function using par and pseq
+mapPseq :: ([a] -> b) -> [[a]] -> [b]
+mapPseq f []     = []
+mapPseq f (a:as) = par b (pseq bs (b:bs))
+  where b  = f a
+        bs = mapPseq f as
+
+-- | Parallel map function using par and pseq
+mapPseqP :: Int -> ([a] -> b) -> [[a]] -> [b]
+mapPseqP s f as = undefined
+  where as' = partition s as
 
 jackknife :: ([a] -> b) -> [a] -> [b]
-jackknife f = map f . resamples 500
+jackknife f = mapPseq f . resamples 500
+
 
 
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]

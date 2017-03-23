@@ -61,7 +61,8 @@ executable ass1
   -- Other library packages from which modules are imported.
   build-depends:        base >=4.9 && <4.10,
                         random >=1.1,
-                        criterion >=1.1
+                        criterion >=1.1,
+                        parallel >=3.2
 
   -- Directories containing source files.
   -- hs-source-dirs:
