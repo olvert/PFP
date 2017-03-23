@@ -35,11 +35,15 @@ mapPseq f (a:as) = par b (pseq bs (b:bs))
 
 -- | Parallel map function using par and pseq
 mapPseqP :: Int -> ([a] -> b) -> [[a]] -> [b]
-mapPseqP s f as = undefined
-  where as' = partition s as
+mapPseqP s f as = mapPseqP' $ partition s as
+  where mapPseqP' []      = []
+        mapPseqP' (b:bs)  = par b' (pseq bs' (b'++bs'))
+          where b'  = map f b
+                bs' = mapPseqP' bs
+
 
 jackknife :: ([a] -> b) -> [a] -> [b]
-jackknife f = mapPseq f . resamples 500
+jackknife f = mapPseqP 2 f . resamples 500
 
 
 
