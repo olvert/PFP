@@ -4,6 +4,7 @@ import Data.List hiding (partition)
 import System.Random
 import Criterion.Main
 import Control.Parallel
+import Control.Parallel.Strategies
 import Control.DeepSeq
 import Utils
 
@@ -42,10 +43,9 @@ mapDaC :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
 mapDaC d f [] = []
 mapDaC 0 f as = map f as
 mapDaC d f as = par (rnf ys') (xs' ++ ys')
-  where (xs, ys) = splitAt (length as `div` 2) as
+  where (xs, ys) = splitInHalf as
         xs'      = mapDaC (d-1) f xs
         ys'      = mapDaC (d-1) f ys
-
 
 -- | Parallel map function that runs map in parallel over sublists
 -- Status: Broken because of lazy evaluation
@@ -53,8 +53,19 @@ mapPseqP :: Int -> ([a] -> b) -> [[a]] -> [b]
 mapPseqP s f as = pseq as' (concat as')
   where as' = mapPseq (map f) $ partition s as
 
+parMapD :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
+parMapD d f [] = []
+parMapD 0 f as = map f as
+parMapD d f as = runEval $ do
+  let (xs, ys) = splitInHalf as
+  --    xs'      = parMapD (d-1) f xs
+  xs' <- rpar $ force $ parMapD (d-1) f xs
+  ys' <- rpar $ force $ parMapD (d-1) f ys
+  return $ xs'++ys'
+
 jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
-jackknife f = mapDaC 2 f . resamples 500
+jackknife f = parMapD 3 f . resamples 500
+-- jackknife f = mapDaC 2 f . resamples 500
 
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 

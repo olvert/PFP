@@ -7,3 +7,7 @@ partition n as = partition' as
   where cs = max 1 (length as `div` n) -- cannot have more chunks than elements
         partition' [] = []
         partition' as' = take cs as' : partition' (drop cs as')
+
+
+splitInHalf :: [a] -> ([a], [a])
+splitInHalf as = splitAt (length as `div` 2) as

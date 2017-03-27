@@ -59,12 +59,12 @@ executable ass1
   ghc-options: -threaded -eventlog -rtsopts
 
   -- Other library packages from which modules are imported.
-  build-depends:        base >=4.9 && <4.10,
+  build-depends:        base >=4.8 && <4.10,
                         random >=1.1,
                         criterion >=1.1,
                         parallel >=3.2,
                         deepseq >=1.4
-                        
+
   -- Directories containing source files.
   -- hs-source-dirs:
 
