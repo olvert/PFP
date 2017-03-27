@@ -61,6 +61,8 @@ parMapD d f as = runEval $ do
   --    xs'      = parMapD (d-1) f xs
   xs' <- rpar $ force $ parMapD (d-1) f xs
   ys' <- rpar $ force $ parMapD (d-1) f ys
+  --rseq xs'
+  --rseq ys'
   return $ xs'++ys'
 
 jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
@@ -68,6 +70,32 @@ jackknife f = parMapD 3 f . resamples 500
 -- jackknife f = mapDaC 2 f . resamples 500
 
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
+
+-- | merge recursively two lists
+merge :: Ord a => [a] -> [a] -> [a]
+merge xs [] = xs
+merge [] ys = ys
+merge (x:xs) (y:ys) 
+         | (x <= y)  = x:(merge xs (y:ys)) 
+         | otherwise = y:(merge (x:xs) ys)
+
+-- | mergesort implemntation
+mergesort :: Ord a => [a] -> [a]
+mergesort [] = []
+mergesort [x] = [x]
+mergesort xs = let (a, b) = splitInHalf xs
+               in merge (mergesort a) (mergesort b)
+
+--| With d granularity and rpar
+mergesortD :: Ord a => Int -> [a] -> [a]
+mergesortD _ []  = []
+mergesortD _ [x] = [x]
+mergesortD d as = runEval $ do
+  let (a, b) = splitInHalf as
+  xs' <- rpar $ mergesortD (d-1) a
+  ys' <- rpar $ mergesortD (d-1) b
+  return $ merge xs' ys'
+
 
 main = do
   let (xs,ys) = splitAt 1500  (take 6000
