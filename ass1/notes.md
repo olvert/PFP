@@ -58,3 +58,33 @@ Total time:   23.36s
 Mutator time: 12.52s
 GC time:      10.84s
 Productivity: 53.6% of mutator vs total
+
+### map (-N4 -A100m -H2G) --Agazi
+Total time:   11.79s
+Mutator time: 11.68s
+GC time:      0.11s
+Productivity: 99.1% of mutator vs total
+
+### map (-N2 -A100m) --Agazi
+Total time:   10.62s
+Mutator time: 10.49s
+GC time:      0.12s
+Productivity: 98.8% of mutator vs total
+
+### mapDac depth: 2 (-N4 -A100m -H1G) --Agazi
+Total time:   16.41s
+Mutator time: 9.78s
+GC time:      6.63s
+Productivity: 59.6% of mutator vs total
+
+### mapDac depth: 2 (-N4 -A100m -H2G) --Agazi
+Total time:   20.35s
+Mutator time: 16.30s
+GC time:      4.05s
+Productivity: 80.1% of mutator vs total
+
+### mapDac depth: 2 (-N4 -A100m) --Agazi
+Total time:   14.54s
+Mutator time: 7.78s
+GC time:      6.76s
+Productivity: 53.5% of mutator vs total
