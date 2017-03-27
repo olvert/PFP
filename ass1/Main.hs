@@ -4,6 +4,7 @@ import Data.List hiding (partition)
 import System.Random
 import Criterion.Main
 import Control.Parallel
+import Control.DeepSeq
 import Utils
 
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
@@ -26,26 +27,34 @@ resamples k xs =
     take (length xs - k) $
     zipWith (++) (inits xs) (map (drop k) (tails xs))
 
--- | Parallel map function using par and pseq
+-- | Parallel map function running each element in parallel
+-- | Status: Broken because of lazy evaluation
 mapPseq :: ([a] -> b) -> [[a]] -> [b]
 mapPseq f []     = []
 mapPseq f (a:as) = par b (pseq bs (b:bs))
   where b  = f a
         bs = mapPseq f as
 
--- | Parallel map function using par and pseq
+-- | Parallel map function using depth to recursively split list into sublists
+-- | and run the evaluation in parallel (DaC = Divide and Conquer)
+-- | Status: Works by forcing evaluation by 'rnf'
+mapDaC :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
+mapDaC d f [] = []
+mapDaC 0 f as = map f as
+mapDaC d f as = par (rnf ys') (xs' ++ ys')
+  where (xs, ys) = splitAt (length as `div` 2) as
+        xs'      = mapDaC (d-1) f xs
+        ys'      = mapDaC (d-1) f ys
+
+
+-- | Parallel map function that runs map in parallel over sublists
+-- Status: Broken because of lazy evaluation
 mapPseqP :: Int -> ([a] -> b) -> [[a]] -> [b]
-mapPseqP s f as = mapPseqP' $ partition s as
-  where mapPseqP' []      = []
-        mapPseqP' (b:bs)  = par b' (pseq bs' (b'++bs'))
-          where b'  = map f b
-                bs' = mapPseqP' bs
+mapPseqP s f as = pseq as' (concat as')
+  where as' = mapPseq (map f) $ partition s as
 
-
-jackknife :: ([a] -> b) -> [a] -> [b]
-jackknife f = mapPseqP 2 f . resamples 500
-
-
+jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
+jackknife f = mapDaC 2 f . resamples 500
 
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 

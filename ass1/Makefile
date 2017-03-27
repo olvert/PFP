@@ -1,6 +1,6 @@
 # VARS
 
-N ?= 2 # Default number of cores if not defined
+N ?= 4 # Default number of cores if not defined
 FILENAME = ass1.eventlog
 
 # RULES
@@ -17,6 +17,6 @@ ts:
 	./.cabal-sandbox/bin/threadscope $(FILENAME)
 
 run: Main.hs
-	./dist/build/ass1/ass1 +RTS -N$(N) -ls -lf
+	./dist/build/ass1/ass1 +RTS -N$(N) -ls -lf -A100M -H2G
 
 Main.hs: build
