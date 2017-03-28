@@ -79,8 +79,8 @@ merge :: Ord a => [a] -> [a] -> [a]
 merge xs [] = xs
 merge [] ys = ys
 merge (x:xs) (y:ys)
-         | (x <= y)  = x:(merge xs (y:ys))
-         | otherwise = y:(merge (x:xs) ys)
+         | x <= y  = x:merge xs (y:ys)
+         | otherwise = y:merge (x:xs) ys
 
 -- | mergesort implemntation
 mergesort :: Ord a => [a] -> [a]
@@ -90,13 +90,14 @@ mergesort xs = let (a, b) = splitInHalf xs
                in merge (mergesort a) (mergesort b)
 
 -- | With d granularity and rpar
-mergesortD :: Ord a => Int -> [a] -> [a]
+mergesortD :: (NFData a, Ord a) => Int -> [a] -> [a]
 mergesortD _ []  = []
 mergesortD _ [x] = [x]
+mergesortD 0 as = mergesort as
 mergesortD d as = runEval $ do
-  let (a, b) = splitInHalf as
-  xs' <- rpar $ mergesortD (d-1) a
-  ys' <- rpar $ mergesortD (d-1) b
+  let (xs, ys) = splitInHalf as
+  xs' <- rpar $ force $ mergesortD (d-1) xs
+  ys' <- rpar $ force $ mergesortD (d-1) ys
   return $ merge xs' ys'
 
 
@@ -110,12 +111,14 @@ jackknife f = mapPseq f . resamples 500
 
 -- | Placeholder for current sort strategy
 sortfun :: (NFData a, Ord a) => [a] -> [a]
-sortfun = mergesortD 2
+--sortfun = mergesortD 2
+sortfun = mergesortD 1
+
 
 -- | Main function for sort benchmark
 sortBench :: IO ()
 sortBench = do
-  let rnds = take 100000 (randoms (mkStdGen 211570155)) :: [Int]
+  let rnds = take 6000 (randoms (mkStdGen 211570155)) :: [Int]
   defaultMain [ bench "sort" $ nf sortfun rnds ]
   return ()
 
@@ -139,4 +142,4 @@ jackBench = do
 
 main :: IO ()
 main = sortBench
--- main = jackBench
+--main = jackBench

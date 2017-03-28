@@ -1,6 +1,7 @@
 # VARS
 
-N ?= 4 # Default number of cores if not defined
+# Default number of cores if not defined
+N ?= 4
 FILENAME = ass1.eventlog
 
 # RULES
