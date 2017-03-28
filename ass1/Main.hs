@@ -11,8 +11,10 @@ import Utils
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
 -- I suspect it comes from Bryan O'Sullivan, author of Criterion
 
-data T a = T !a !Int
 
+-- * Predefined
+
+data T a = T !a !Int
 
 mean :: (RealFrac a) => [a] -> a
 mean = fini . foldl' go (T 0 0)
@@ -22,11 +24,15 @@ mean = fini . foldl' go (T 0 0)
       where m' = m + (x - m) / fromIntegral n'
             n' = n + 1
 
-
 resamples :: Int -> [a] -> [[a]]
 resamples k xs =
     take (length xs - k) $
     zipWith (++) (inits xs) (map (drop k) (tails xs))
+
+crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
+
+
+-- * Parallell Map
 
 -- | Parallel map function running each element in parallel
 -- | Status: Broken because of lazy evaluation
@@ -65,18 +71,15 @@ parMapD d f as = runEval $ do
   --rseq ys'
   return $ xs'++ys'
 
-jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
-jackknife f = parMapD 3 f . resamples 500
--- jackknife f = mapDaC 2 f . resamples 500
 
-crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
+-- * Parallell Merge
 
 -- | merge recursively two lists
 merge :: Ord a => [a] -> [a] -> [a]
 merge xs [] = xs
 merge [] ys = ys
-merge (x:xs) (y:ys) 
-         | (x <= y)  = x:(merge xs (y:ys)) 
+merge (x:xs) (y:ys)
+         | (x <= y)  = x:(merge xs (y:ys))
          | otherwise = y:(merge (x:xs) ys)
 
 -- | mergesort implemntation
@@ -86,7 +89,7 @@ mergesort [x] = [x]
 mergesort xs = let (a, b) = splitInHalf xs
                in merge (mergesort a) (mergesort b)
 
---| With d granularity and rpar
+-- | With d granularity and rpar
 mergesortD :: Ord a => Int -> [a] -> [a]
 mergesortD _ []  = []
 mergesortD _ [x] = [x]
@@ -97,7 +100,28 @@ mergesortD d as = runEval $ do
   return $ merge xs' ys'
 
 
-main = do
+-- * Benchmark Related
+
+-- | Placeholder for current map strategy
+jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
+jackknife f = mapPseq f . resamples 500
+-- jackknife f = parMapD 3 f . resamples 500
+-- jackknife f = mapDaC 2 f . resamples 500
+
+-- | Placeholder for current sort strategy
+sortfun :: (NFData a, Ord a) => [a] -> [a]
+sortfun = mergesortD 2
+
+-- | Main function for sort benchmark
+sortBench :: IO ()
+sortBench = do
+  let rnds = take 100000 (randoms (mkStdGen 211570155)) :: [Int]
+  defaultMain [ bench "sort" $ nf sortfun rnds ]
+  return ()
+
+-- | Main function for map benchmark
+jackBench :: IO ()
+jackBench = do
   let (xs,ys) = splitAt 1500  (take 6000
                                (randoms (mkStdGen 211570155)) :: [Float] )
   -- handy (later) to give same input different parallel functions
@@ -112,3 +136,7 @@ main = do
         [
          bench "jackknife" (nf (jackknife  mean) rs)
          ]
+
+main :: IO ()
+main = sortBench
+-- main = jackBench
