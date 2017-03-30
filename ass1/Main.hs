@@ -4,8 +4,9 @@ import Data.List hiding (partition)
 import System.Random
 import Criterion.Main
 import Control.Parallel
-import Control.Parallel.Strategies
+import Control.Parallel.Strategies as Strategies
 import Control.DeepSeq
+import Control.Monad.Par as Par
 import Utils
 
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
@@ -32,14 +33,14 @@ resamples k xs =
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 
 
--- * Parallell Map
+-- * Parallell Map (Assignment 1)
 
 -- | Parallel map function running each element in parallel
 -- | Status: Broken because of lazy evaluation
-mapPseq :: ([a] -> b) -> [[a]] -> [b]
+mapPseq :: (NFData b) => ([a] -> b) -> [[a]] -> [b]
 mapPseq f []     = []
 mapPseq f (a:as) = par b (pseq bs (b:bs))
-  where b  = f a
+  where b  = force $ f a
         bs = mapPseq f as
 
 -- | Parallel map function using depth to recursively split list into sublists
@@ -55,7 +56,7 @@ mapDaC d f as = par (rnf ys') (xs' ++ ys')
 
 -- | Parallel map function that runs map in parallel over sublists
 -- Status: Broken because of lazy evaluation
-mapPseqP :: Int -> ([a] -> b) -> [[a]] -> [b]
+mapPseqP :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
 mapPseqP s f as = pseq as' (concat as')
   where as' = mapPseq (map f) $ partition s as
 
@@ -69,10 +70,32 @@ parMapD d f as = runEval $ do
   ys' <- rpar $ force $ parMapD (d-1) f ys
   --rseq xs'
   --rseq ys'
-  return $ xs'++ys'
+  return $ xs' ++ ys'
+
+-- | Parallell map utilising strategies
+parMapS :: (NFData b) => ([a] -> b) -> [[a]] -> [b]
+parMapS = Strategies.parMap rdeepseq
+
+-- | Parallell map utilising the Par monad
+parMapP :: (NFData b) => (a -> b) -> [a] -> [b]
+parMapP f as = runPar $ Par.parMap f as
+
+-- | Parallell map utilising the Par monad with depth
+parMapPD :: (NFData b) => Int -> (a -> b) -> [a] -> [b]
+parMapPD d f [] = []
+parMapPD 0 f as = map f as
+parMapPD d f as = runPar $ do
+  let (xs, ys) = splitInHalf as
+  xs' <- new
+  ys' <- new
+  fork $ put xs' (parMapPD (d-1) f xs)
+  fork $ put ys' (parMapPD (d-1) f ys)
+  xs'' <- get xs'
+  ys'' <- get ys'
+  return $ xs'' ++ ys''
 
 
--- * Parallell Merge
+-- * Parallell Merge (Assignment 2)
 
 -- | merge recursively two lists
 merge :: Ord a => [a] -> [a] -> [a]
@@ -100,14 +123,17 @@ mergesortD d as = runEval $ do
   ys' <- rpar $ force $ mergesortD (d-1) ys
   return $ merge xs' ys'
 
-
 -- * Benchmark Related
 
 -- | Placeholder for current map strategy
 jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
+-- jackknife f = map f . resamples 500
 jackknife f = mapPseq f . resamples 500
--- jackknife f = parMapD 3 f . resamples 500
 -- jackknife f = mapDaC 2 f . resamples 500
+-- jackknife f = parMapD 3 f . resamples 500
+-- jackknife f = parMapS f . resamples 500
+-- jackknife f = parMapP f . resamples 500
+-- jackknife f = parMapPD 4 f . resamples 500
 
 -- | Placeholder for current sort strategy
 sortfun :: (NFData a, Ord a) => [a] -> [a]
@@ -141,5 +167,5 @@ jackBench = do
          ]
 
 main :: IO ()
-main = sortBench
---main = jackBench
+-- main = sortBench
+main = jackBench
