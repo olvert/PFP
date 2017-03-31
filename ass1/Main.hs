@@ -66,15 +66,7 @@ parMapP f as = runPar $ Par.parMap f as
 parMapPD :: (NFData b) => Int -> (a -> b) -> [a] -> [b]
 parMapPD d f [] = []
 parMapPD 0 f as = map f as
-parMapPD d f as = runPar $ do
-  let (xs, ys) = splitInHalf as
-  xs' <- new
-  ys' <- new
-  fork $ put xs' (parMapPD (d-1) f xs)
-  fork $ put ys' (parMapPD (d-1) f ys)
-  xs'' <- get xs'
-  ys'' <- get ys'
-  return $ xs'' ++ ys''
+parMapPD d f as = runPar $ dacPar (parMapPD (d-1) f) (++) as
 
 
 -- * Parallell Merge (Assignment 2)
@@ -94,34 +86,76 @@ mergesort [x] = [x]
 mergesort xs = let (a, b) = splitInHalf xs
                in merge (mergesort a) (mergesort b)
 
+-- | Parallel mergesort utilising par and pseq
+mergesortPseq :: (NFData a, Ord a) => [a] -> [a]
+mergesortPseq [] = []
+mergesortPseq [x] = [x]
+mergesortPseq xs = dacPseq mergesortPseq merge xs
+
 -- | Parallel mergesort utilising rpar with depth
-mergesortD :: (NFData a, Ord a) => Int -> [a] -> [a]
-mergesortD _ []  = []
-mergesortD _ [x] = [x]
-mergesortD 0 as = mergesort as
-mergesortD d as = runEval $ do
+mergesortRD :: (NFData a, Ord a) => Int -> [a] -> [a]
+mergesortRD _ []  = []
+mergesortRD _ [x] = [x]
+mergesortRD 0 as = mergesort as
+mergesortRD d as = runEval $ do
   let (xs, ys) = splitInHalf as
-  xs' <- rpar $ force $ mergesortD (d-1) xs
-  ys' <- rpar $ force $ mergesortD (d-1) ys
+  xs' <- rpar $ force $ mergesortRD (d-1) xs
+  ys' <- rpar $ force $ mergesortRD (d-1) ys
   return $ merge xs' ys'
+
+-- | Parallel mergesort utilising the Par monad
+mergesortP :: (NFData a, Ord a) => [a] -> [a]
+mergesortP []  = []
+mergesortP [x] = [x]
+mergesortP as = runPar $ dacPar mergesortP merge as
+
+-- | Parallel mergesort utilising the Par monad with depth
+mergesortPD :: (NFData a, Ord a) => Int -> [a] -> [a]
+mergesortPD d []  = []
+mergesortPD d [x] = [x]
+mergesortPD 0 as  = mergesort as
+mergesortPD d as  = runPar $ dacPar (mergesortPD (d-1)) merge as
+
+
+-- * Helpers
+
+-- | Helper function encapsulating the DaC pattern with the Par monad
+dacPar :: (NFData b) => ([a] -> [b]) -> ([b] -> [b] -> [b]) -> [a] -> Par [b]
+dacPar f m as = do
+  let (xs, ys) = splitInHalf as
+  xs' <- new
+  ys' <- new
+  fork $ put xs' (f xs)
+  fork $ put ys' (f ys)
+  xs'' <- get xs'
+  ys'' <- get ys'
+  return $ m xs'' ys''
+
+-- | Helper function encapsulating the DaC pattern using par and pseq
+dacPseq :: (NFData b) => ([a] -> [b]) -> ([b] -> [b] -> [b]) -> [a] -> [b]
+dacPseq f m as = par (rnf ys') (pseq xs' (m xs' ys'))
+  where (xs, ys) = splitInHalf as
+        xs'      = f xs
+        ys'      = f ys
 
 
 -- * Benchmark Related
 
 -- | Placeholder for current map strategy
 jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
-jackknife f = map f . resamples 500
+-- jackknife f = map f . resamples 500
 -- jackknife f = Main.parMap 2 f . resamples 500
--- jackknife f = parMapRD 3 f . resamples 500
+jackknife f = parMapRD 3 f . resamples 500
 -- jackknife f = parMapS f . resamples 500
 -- jackknife f = parMapP f . resamples 500
 -- jackknife f = parMapPD 4 f . resamples 500
 
 -- | Placeholder for current sort strategy
 sortfun :: (NFData a, Ord a) => [a] -> [a]
---sortfun = mergesortD 2
-sortfun = mergesortD 1
-
+sortfun = mergesort
+-- sortfun = mergesortRD 6
+-- sortfun = mergesortPD 5
+-- sortfun = mergesortPseq
 
 -- | Main function for sort benchmark
 sortBench :: IO ()
