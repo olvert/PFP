@@ -35,44 +35,26 @@ crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 
 -- * Parallell Map (Assignment 1)
 
--- | Parallel map function running each element in parallel
--- | Status: Broken because of lazy evaluation
-mapPseq :: (NFData b) => ([a] -> b) -> [[a]] -> [b]
-mapPseq f []     = []
-mapPseq f (a:as) = par b (pseq bs (b:bs))
-  where b  = force $ f a
-        bs = mapPseq f as
-
--- | Parallel map function using depth to recursively split list into sublists
--- | and run the evaluation in parallel (DaC = Divide and Conquer)
--- | Status: Works by forcing evaluation by 'rnf'
-mapDaC :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
-mapDaC d f [] = []
-mapDaC 0 f as = map f as
-mapDaC d f as = par (rnf ys') (xs' ++ ys')
+-- | Parallel map utilising par with depth
+parMap :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
+parMap d f [] = []
+parMap 0 f as = map f as
+parMap d f as = par (rnf ys') (xs' ++ ys')
   where (xs, ys) = splitInHalf as
-        xs'      = mapDaC (d-1) f xs
-        ys'      = mapDaC (d-1) f ys
+        xs'      = Main.parMap (d-1) f xs
+        ys'      = Main.parMap (d-1) f ys
 
--- | Parallel map function that runs map in parallel over sublists
--- Status: Broken because of lazy evaluation
-mapPseqP :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
-mapPseqP s f as = pseq as' (concat as')
-  where as' = mapPseq (map f) $ partition s as
-
-parMapD :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
-parMapD d f [] = []
-parMapD 0 f as = map f as
-parMapD d f as = runEval $ do
+-- | Parallel map utilising rpar with depth
+parMapRD :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
+parMapRD d f [] = []
+parMapRD 0 f as = map f as
+parMapRD d f as = runEval $ do
   let (xs, ys) = splitInHalf as
-  --    xs'      = parMapD (d-1) f xs
-  xs' <- rpar $ force $ parMapD (d-1) f xs
-  ys' <- rpar $ force $ parMapD (d-1) f ys
-  --rseq xs'
-  --rseq ys'
+  xs' <- rpar $ force $ parMapRD (d-1) f xs
+  ys' <- rpar $ force $ parMapRD (d-1) f ys
   return $ xs' ++ ys'
 
--- | Parallell map utilising strategies
+-- | Parallell map utilising Strategies
 parMapS :: (NFData b) => ([a] -> b) -> [[a]] -> [b]
 parMapS = Strategies.parMap rdeepseq
 
@@ -97,7 +79,7 @@ parMapPD d f as = runPar $ do
 
 -- * Parallell Merge (Assignment 2)
 
--- | merge recursively two lists
+-- | Merge two lists recursively
 merge :: Ord a => [a] -> [a] -> [a]
 merge xs [] = xs
 merge [] ys = ys
@@ -105,14 +87,14 @@ merge (x:xs) (y:ys)
          | x <= y  = x:merge xs (y:ys)
          | otherwise = y:merge (x:xs) ys
 
--- | mergesort implemntation
+-- | Basic mergesort
 mergesort :: Ord a => [a] -> [a]
 mergesort [] = []
 mergesort [x] = [x]
 mergesort xs = let (a, b) = splitInHalf xs
                in merge (mergesort a) (mergesort b)
 
--- | With d granularity and rpar
+-- | Parallel mergesort utilising rpar with depth
 mergesortD :: (NFData a, Ord a) => Int -> [a] -> [a]
 mergesortD _ []  = []
 mergesortD _ [x] = [x]
@@ -123,14 +105,14 @@ mergesortD d as = runEval $ do
   ys' <- rpar $ force $ mergesortD (d-1) ys
   return $ merge xs' ys'
 
+
 -- * Benchmark Related
 
 -- | Placeholder for current map strategy
 jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
--- jackknife f = map f . resamples 500
-jackknife f = mapPseq f . resamples 500
--- jackknife f = mapDaC 2 f . resamples 500
--- jackknife f = parMapD 3 f . resamples 500
+jackknife f = map f . resamples 500
+-- jackknife f = Main.parMap 2 f . resamples 500
+-- jackknife f = parMapRD 3 f . resamples 500
 -- jackknife f = parMapS f . resamples 500
 -- jackknife f = parMapP f . resamples 500
 -- jackknife f = parMapPD 4 f . resamples 500

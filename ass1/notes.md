@@ -1,4 +1,4 @@
-## Setup – macOS
+parMapRD## Setup – macOS
 
 ### 1. Setup environment
 ```
@@ -43,13 +43,13 @@ Mutator time: 8.35s
 GC time:      1.58s
 Productivity: 84.1% of mutator vs total
 
-#### parMapD depth: 2 (-N4 -A100M -H2G) --Olle
+#### parMapRD depth: 2 (-N4 -A100M -H2G) --Olle
 Total time:   9.59s
 Mutator time: 7.45s
 GC time:      2.14s
 Productivity: 77.7% of mutator vs total
 
-#### parMapD depth: 2 (-N4 -A100M -H2G) --Olle
+#### parMapRD depth: 2 (-N4 -A100M -H2G) --Olle
 Total time:   8.80s
 Mutator time: 7.29s
 GC time:      1.51s
