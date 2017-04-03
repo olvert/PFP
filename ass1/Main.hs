@@ -145,17 +145,18 @@ dacPseq f m as = par (rnf ys') (pseq xs' (m xs' ys'))
 jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
 -- jackknife f = map f . resamples 500
 -- jackknife f = Main.parMap 2 f . resamples 500
-jackknife f = parMapRD 3 f . resamples 500
+-- jackknife f = parMapRD 2 f . resamples 500
 -- jackknife f = parMapS f . resamples 500
--- jackknife f = parMapP f . resamples 500
+jackknife f = parMapP f . resamples 500
 -- jackknife f = parMapPD 4 f . resamples 500
 
 -- | Placeholder for current sort strategy
 sortfun :: (NFData a, Ord a) => [a] -> [a]
-sortfun = mergesort
--- sortfun = mergesortRD 6
--- sortfun = mergesortPD 5
+-- sortfun = mergesort
 -- sortfun = mergesortPseq
+-- sortfun = mergesortRD 2
+sortfun = mergesortP
+-- sortfun = mergesortPD 5
 
 -- | Main function for sort benchmark
 sortBench :: IO ()
@@ -183,5 +184,5 @@ jackBench = do
          ]
 
 main :: IO ()
--- main = sortBench
-main = jackBench
+main = sortBench
+--main = jackBench
