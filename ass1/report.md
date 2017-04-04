@@ -17,6 +17,9 @@ performance and reduce time spent garbage collecting: ** -N4 -A100M -H2G**.
 The executable was also compiled with the **-O2** flag to allow the GHC
 compiler to perform as many optimisations as possible.
 
+All implementations with manual granularity have been run with a depth of 2
+since this gave the best result.
+
 ## Assignment 1
 We start by running a benchmark on the standard `map` function as a starting
 point for our comparisons.
@@ -80,3 +83,21 @@ Finally we tried a version using the Par-monad which gave a runtime of roughly
 ![](png/mergesortP.png)
 
 ## Conclusions
+
+Regarding the parallelised map we found that `parMapS` was the fastest by
+parallelising each element and not using depth. Even though this made the spark
+tasks small and possibly introducing excessive overhead, it was still fastest.
+One possible reason for not improving the performance with depth could be that
+by manually controlling the granularity, we split the list in half and solve
+the halves in parallel. Before a final result can be returned, these sub lists
+must be joined again. The join operation (++) is **O(n)** which becomes
+relatively costly in our context. We believe that the time saved by reducing
+spark overhead is lost by the number of joins needed in our implementations
+with depth and granularity.
+
+Unfortunately we were unable the improve the performance in the merge sort case.
+Even though merge sort should yield good results when parallelised. Still, it
+is not as "embarrassingly parallel" as map where all intermediate results a
+independent of each other. It was mentioned during the lectures that one should
+have a 4-core machine the really make the course "fun". Maybe the 2 cores of our
+benchmark machine was not enough to make the parallelisation really shine.
