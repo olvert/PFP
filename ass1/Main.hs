@@ -6,6 +6,7 @@ import Criterion.Main
 import Control.Parallel
 import Control.Parallel.Strategies as Strategies
 import Control.DeepSeq
+import Control.Monad
 import Control.Monad.Par as Par
 import Utils
 
@@ -53,6 +54,22 @@ parMapRD d f as = runEval $ do
   xs' <- rpar $ force $ parMapRD (d-1) f xs
   ys' <- rpar $ force $ parMapRD (d-1) f ys
   return $ xs' ++ ys'
+  
+  
+-- | Parallel map utilising rpar with depth
+parMapRD' :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
+parMapRD' d f as = runEval $ fun d (mdl as) f as
+  where 
+    --fun :: (NFData b) => Int -> Int -> ([a] -> b) -> [[a]] -> Eval [b]
+    fun d i f [] = return []
+    fun 0 i f as = return $ force $ map f as
+    fun d i f as = do
+      let (xs, ys) = splitAt i as
+      xs'  <- fun (d-1) (i `div` 2) f xs
+      ys'  <- fun (d-1) (i `div` 2) f ys
+      ys'' <- rparWith rdeepseq ys'
+      xs'' <- rparWith rdeepseq xs'
+      return $ xs'' ++ ys''
 
 -- | Parallell map utilising Strategies
 parMapS :: (NFData b) => ([a] -> b) -> [[a]] -> [b]
@@ -145,9 +162,9 @@ dacPseq f m as = par (rnf ys') (pseq xs' (m xs' ys'))
 jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
 -- jackknife f = map f . resamples 500
 -- jackknife f = Main.parMap 2 f . resamples 500
--- jackknife f = parMapRD 2 f . resamples 500
+jackknife f = parMapRD' 2 f . resamples 500
 -- jackknife f = parMapS f . resamples 500
-jackknife f = parMapP f . resamples 500
+-- jackknife f = parMapP f . resamples 500
 -- jackknife f = parMapPD 4 f . resamples 500
 
 -- | Placeholder for current sort strategy
@@ -184,5 +201,7 @@ jackBench = do
          ]
 
 main :: IO ()
-main = sortBench
---main = jackBench
+-- main = sortBench
+main = jackBench
+
+

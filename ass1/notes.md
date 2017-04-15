@@ -1,4 +1,9 @@
-parMapRD## Setup – macOS
+## Discuss
+
+ – Is the length correct?
+ – Is the operations within the monad? 
+
+## Setup – macOS
 
 ### 1. Setup environment
 ```
