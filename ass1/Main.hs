@@ -83,7 +83,7 @@ parMapP f as = runPar $ Par.parMap f as
 parMapPD :: (NFData b) => Int -> (a -> b) -> [a] -> [b]
 parMapPD d f [] = []
 parMapPD 0 f as = map f as
-parMapPD d f as = runPar $ dacPar (parMapPD (d-1) f) (++) as
+-- parMapPD d f as = runPar $ dacPar (parMapPD (d-1) f) (++) as
 
 
 -- * Parallell Merge (Assignment 2)
@@ -124,26 +124,27 @@ mergesortRD d as = runEval $ do
 mergesortP :: (NFData a, Ord a) => [a] -> [a]
 mergesortP []  = []
 mergesortP [x] = [x]
-mergesortP as = runPar $ dacPar mergesortP merge as
+-- mergesortP as = runPar $ dacPar mergesortP merge as
 
 -- | Parallel mergesort utilising the Par monad with depth
 mergesortPD :: (NFData a, Ord a) => Int -> [a] -> [a]
 mergesortPD d []  = []
 mergesortPD d [x] = [x]
 mergesortPD 0 as  = mergesort as
-mergesortPD d as  = runPar $ dacPar (mergesortPD (d-1)) merge as
+-- mergesortPD d as  = runPar $ dacPar (mergesortPD (d-1)) merge as
 
 
 -- * Helpers
 
 -- | Helper function encapsulating the DaC pattern with the Par monad
-dacPar :: (NFData b) => ([a] -> [b]) -> ([b] -> [b] -> [b]) -> [a] -> Par [b]
-dacPar f m as = do
-  let (xs, ys) = splitInHalf as
+dacPar :: (NFData b) => Int -> (Int -> [a] -> [b]) -> ([b] -> [b] -> [b]) -> [a] -> Par [b]
+dacPar i f m as = do
+  let (xs, ys) = splitAt i as
+  let j        = i `div` 2
   xs' <- new
   ys' <- new
-  fork $ put xs' (f xs)
-  fork $ put ys' (f ys)
+  fork $ put xs' (f j xs)
+  fork $ put ys' (f j ys)
   xs'' <- get xs'
   ys'' <- get ys'
   return $ m xs'' ys''
