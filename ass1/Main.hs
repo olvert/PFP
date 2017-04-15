@@ -120,6 +120,18 @@ mergesortRD d as = runEval $ do
   ys' <- rpar $ force $ mergesortRD (d-1) ys
   return $ merge xs' ys'
 
+mergesortRD' :: (NFData a, Ord a) => Int -> [a] -> [a]
+mergesortRD' d as  = runEval $ fun d (mdl as) as
+  where 
+    fun d i [] = return []
+    fun 0 i [x] = [x]
+    fun d i as = do
+      let (xs, ys) = splitAt i as
+      xs' <- fun (d-1) (i `div` 2) xs
+      ys' <- fun (d-1) (i `div` 2) ys
+      xs'' <- rparWith rdeepseq xs'
+      ys'' <- rparWith rdeepseq ys'
+
 -- | Parallel mergesort utilising the Par monad
 mergesortP :: (NFData a, Ord a) => [a] -> [a]
 mergesortP []  = []
