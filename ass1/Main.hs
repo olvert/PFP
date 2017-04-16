@@ -60,16 +60,15 @@ parMapRD d f as = runEval $ do
 parMapRD' :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
 parMapRD' d f as = runEval $ fun d (mdl as) f as
   where 
-    --fun :: (NFData b) => Int -> Int -> ([a] -> b) -> [[a]] -> Eval [b]
+    fun :: (NFData b) => Int -> Int -> ([a] -> b) -> [[a]] -> Eval [b]
     fun d i f [] = return []
     fun 0 i f as = return $ force $ map f as
     fun d i f as = do
       let (xs, ys) = splitAt i as
-      xs'  <- fun (d-1) (i `div` 2) f xs
-      ys'  <- fun (d-1) (i `div` 2) f ys
-      ys'' <- rparWith rdeepseq ys'
-      xs'' <- rparWith rdeepseq xs'
-      return $ xs'' ++ ys''
+      let eval as  = fmap (rpar . force) (fun (d-1) (i `div` 2) f as)
+      ys' <- eval ys
+      xs' <- eval xs
+      liftM2 (++) xs' ys'
 
 -- | Parallell map utilising Strategies
 parMapS :: (NFData b) => ([a] -> b) -> [[a]] -> [b]
@@ -92,7 +91,10 @@ parMapPD' d f as = runPar $ fun f d (mdl as) as
     fun :: (NFData b) => (a -> b) -> Int -> Int -> [a] -> Par [b]
     fun f d i [] = return []
     fun f 0 i as = return $ map f as
-    fun f d i as = dacPar' d i (fun f) (++) as
+    fun f d i as = dacPar' (fun f (d-1) j) (++) xs ys
+      where 
+        (xs, ys) = splitAt i as
+        j        = i `div` 2
 
 -- * Parallell Merge (Assignment 2)
 
@@ -171,19 +173,16 @@ dacPar f m as = do
   return $ m xs'' ys''
 
 -- | Helper function encapsulating the DaC pattern with the Par monad
-dacPar' :: (NFData b) => Int -> Int -> (Int -> Int -> [a] -> Par [b]) -> ([b] -> [b] -> [b]) -> [a] -> Par [b]
-dacPar' d i f m as = do
-  let (xs, ys) = splitAt i as
-  let j        = i `div` 2
+dacPar' :: (NFData b) => ([a] -> Par [b]) -> ([b] -> [b] -> [b]) -> [a] -> [a] -> Par [b]
+dacPar' f m xs ys = do
   xs'  <- new
   ys'  <- new
-  fxs' <- (f (d-1) j xs)
-  fys' <- (f (d-1) j ys)
-  fork $ put xs' fxs'
-  fork $ put ys' fys'
+  fork $ join $ fmap (put xs') (f xs)
+  fork $ join $ fmap (put ys') (f ys)
   xs'' <- get xs'
   ys'' <- get ys'
-  return $ m xs'' ys''
+  return $ m xs'' ys'' 
+
 
 -- | Helper function encapsulating the DaC pattern using par and pseq
 dacPseq :: (NFData b) => ([a] -> [b]) -> ([b] -> [b] -> [b]) -> [a] -> [b]
@@ -199,10 +198,10 @@ dacPseq f m as = par (rnf ys') (pseq xs' (m xs' ys'))
 jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
 -- jackknife f = map f . resamples 500
 -- jackknife f = Main.parMap 2 f . resamples 500
--- jackknife f = parMapRD 2 f . resamples 500
+-- jackknife f = parMapRD' 2 f . resamples 500
 -- jackknife f = parMapS f . resamples 500
 -- jackknife f = parMapP f . resamples 500
-jackknife f = parMapPD' 2 f . resamples 500
+jackknife f = parMapPD 3 f . resamples 500
 
 -- | Placeholder for current sort strategy
 sortfun :: (NFData a, Ord a) => [a] -> [a]
@@ -238,7 +237,7 @@ jackBench = do
          ]
 
 main :: IO ()
-main = sortBench
--- main = jackBench
+-- main = sortBench
+main = jackBench
 
 
