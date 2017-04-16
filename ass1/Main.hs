@@ -49,6 +49,19 @@ parMap d f as = par (rnf ys') (xs' ++ ys')
   where (xs, ys) = splitInHalf as
         xs'      = Main.parMap (d-1) f xs
         ys'      = Main.parMap (d-1) f ys
+        
+-- | Parallel map utilising par with depth
+parMap' :: (NFData b) => Int -> (a -> b) -> [a] -> [b]
+parMap' d f as = fun d (mdl as) f as
+  where
+    --fun :: Int -> Int -> (a -> b) -> [a] -> [b]
+    fun d i f [] = []
+    fun 0 i f as = map f as
+    fun d i f as = par (rnf ys') (xs' ++ ys')
+      where (xs, ys) = splitAt i as
+            eval     = fun (d-1) (i `div` 2) f
+            xs'      = eval xs
+            ys'      = eval ys
 
 -- | Parallel map utilising rpar with depth
 parMapRD :: (NFData b) => Int -> (a -> b) -> [a] -> [b]
@@ -113,10 +126,19 @@ merge (x:xs) (y:ys)
 
 -- | Basic mergesort
 mergesort :: Ord a => [a] -> [a]
-mergesort [] = []
+mergesort []  = []
 mergesort [x] = [x]
-mergesort xs = let (a, b) = splitInHalf xs
-               in merge (mergesort a) (mergesort b)
+mergesort xs  = let (a, b) = splitInHalf xs
+                in merge (mergesort a) (mergesort b)
+               
+               
+-- | Basic mergesort
+mergesort' :: Ord a => Int -> [a] -> [a]
+mergesort' i []  = []
+mergesort' i [x] = [x]
+mergesort' i xs  = let (a, b) = splitAt i xs
+                       j      = i `div` 2
+                   in merge (mergesort' j a) (mergesort' j b)
 
 -- | Parallel mergesort utilising par and pseq
 mergesortPseq :: (NFData a, Ord a) => [a] -> [a]
@@ -135,33 +157,45 @@ mergesortRD d as = runEval $ do
   ys' <- rpar $ force $ mergesortRD (d-1) ys
   return $ merge xs' ys'
 
+-- | Parallel mergesort utilising rpar with depth
 mergesortRD' :: (NFData a, Ord a) => Int -> [a] -> [a]
 mergesortRD' d as  = runEval $ fun d (mdl as) as
   where 
     fun d i []  = return []
     fun d i [x] = return [x]
-    fun 0 i as  = return $ mergesort as
+    fun 0 i as  = return $ mergesort' (i `div` 2) as
     fun d i as  = do
       let (xs, ys) = splitAt i as
-      xs' <- fun (d-1) (i `div` 2) xs
-      ys' <- fun (d-1) (i `div` 2) ys
-      xs'' <- rparWith rdeepseq xs'
-      ys'' <- rparWith rdeepseq ys'
-      return $ merge xs'' ys''
+      let eval as  = join $ fmap (rpar . force) (fun (d-1) (i `div` 2) as)
+      xs' <- eval xs
+      ys' <- eval ys
+      return $ merge xs' ys'
 
 -- | Parallel mergesort utilising the Par monad
 mergesortP :: (NFData a, Ord a) => [a] -> [a]
 mergesortP []  = []
 mergesortP [x] = [x]
--- mergesortP as = runPar $ dacPar mergesortP merge as
+mergesortP as  = runPar $ dacPar mergesortP merge as
 
 -- | Parallel mergesort utilising the Par monad with depth
 mergesortPD :: (NFData a, Ord a) => Int -> [a] -> [a]
 mergesortPD d []  = []
 mergesortPD d [x] = [x]
 mergesortPD 0 as  = mergesort as
--- mergesortPD d as  = runPar $ dacPar (mergesortPD (d-1)) merge as
+mergesortPD d as  = runPar $ dacPar (mergesortPD (d-1)) merge as
 
+-- | Parallel mergesort utilising the Par monad with depth
+mergesortPD' :: (NFData a, Ord a) => Int -> [a] -> [a]
+mergesortPD' d as = runPar $ fun d (mdl as) as
+  where
+    fun d i []  = return []
+    fun d i [x] = return [x]
+    fun 0 i as  = return $ mergesort as
+    fun d i as  = dacPar' (fun (d-1) j) merge xs ys
+      where 
+        (xs, ys) = splitAt i as
+        j        = i `div` 2
+        
 
 -- * Helpers
 
@@ -202,19 +236,19 @@ dacPseq f m as = par (rnf ys') (pseq xs' (m xs' ys'))
 -- | Placeholder for current map strategy
 jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
 -- jackknife f = map f . resamples 500
--- jackknife f = Main.parMap 2 f . resamples 500
+jackknife f = Main.parMap' 2 f . resamples 500
 -- jackknife f = parMapRD' 2 f . resamples 500
 -- jackknife f = parMapS f . resamples 500
 -- jackknife f = parMapP f . resamples 500
-jackknife f = parMapPD 3 f . resamples 500
+-- jackknife f = parMapPD 3 f . resamples 500
 
 -- | Placeholder for current sort strategy
 sortfun :: (NFData a, Ord a) => [a] -> [a]
 -- sortfun = mergesort
 -- sortfun = mergesortPseq
-sortfun = mergesortRD' 2
+sortfun = mergesortRD' 3
 -- sortfun = mergesortP
--- sortfun = mergesortPD 5
+-- sortfun = mergesortPD' 3
 
 -- | Main function for sort benchmark
 sortBench :: IO ()
@@ -242,7 +276,7 @@ jackBench = do
          ]
 
 main :: IO ()
--- main = sortBench
-main = jackBench
+main = sortBench
+-- main = jackBench
 
 
