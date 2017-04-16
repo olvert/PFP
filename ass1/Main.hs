@@ -59,7 +59,7 @@ parMap' d f as = fun d (mdl as) f as
     fun 0 i f as = map f as
     fun d i f as = par (rnf ys') (xs' ++ ys')
       where (xs, ys) = splitAt i as
-            eval     = fun (d-1) (i `div` 2) f
+            eval     = fun (d-1) (hf i) f
             xs'      = eval xs
             ys'      = eval ys
 
@@ -83,7 +83,7 @@ parMapRD' d f as = runEval $ fun d (mdl as) f as
     fun 0 i f as = return $ force $ map f as
     fun d i f as = do
       let (xs, ys) = splitAt i as
-      let eval as  = fmap (rpar . force) (fun (d-1) (i `div` 2) f as)
+      let eval as  = fmap (rpar . force) (fun (d-1) (hf i) f as)
       ys' <- eval ys
       xs' <- eval xs
       liftM2 (++) xs' ys'
@@ -109,10 +109,9 @@ parMapPD' d f as = runPar $ fun f d (mdl as) as
     fun :: (NFData b) => (a -> b) -> Int -> Int -> [a] -> Par [b]
     fun f d i [] = return []
     fun f 0 i as = return $ map f as
-    fun f d i as = dacPar' (fun f (d-1) j) (++) xs ys
+    fun f d i as = dacPar' (fun f (d-1) (hf i)) (++) xs ys
       where 
         (xs, ys) = splitAt i as
-        j        = i `div` 2
 
 -- * Parallell Merge (Assignment 2)
 
@@ -136,9 +135,9 @@ mergesort xs  = let (a, b) = splitInHalf xs
 mergesort' :: Ord a => Int -> [a] -> [a]
 mergesort' i []  = []
 mergesort' i [x] = [x]
-mergesort' i xs  = let (a, b) = splitAt i xs
-                       j      = i `div` 2
-                   in merge (mergesort' j a) (mergesort' j b)
+mergesort' i xs | i < 2     = merge [head xs] (mergesort' 0 $ tail xs)
+                | otherwise = let (a, b) = splitAt i xs
+                              in merge (mergesort' (hf i) a) (mergesort' (hf i) b)
 
 -- | Parallel mergesort utilising par and pseq
 mergesortPseq :: (NFData a, Ord a) => [a] -> [a]
@@ -159,14 +158,14 @@ mergesortRD d as = runEval $ do
 
 -- | Parallel mergesort utilising rpar with depth
 mergesortRD' :: (NFData a, Ord a) => Int -> [a] -> [a]
-mergesortRD' d as  = runEval $ fun d (mdl as) as
+mergesortRD' d as = runEval $ fun d (mdl as) as
   where 
     fun d i []  = return []
     fun d i [x] = return [x]
-    fun 0 i as  = return $ mergesort' (i `div` 2) as
+    fun 0 i as  = return $ mergesort' (hf i) as
     fun d i as  = do
       let (xs, ys) = splitAt i as
-      let eval as  = join $ fmap (rpar . force) (fun (d-1) (i `div` 2) as)
+      let eval as  = join $ fmap (rpar . force) (fun (d-1) (hf i) as)
       xs' <- eval xs
       ys' <- eval ys
       return $ merge xs' ys'
@@ -191,10 +190,9 @@ mergesortPD' d as = runPar $ fun d (mdl as) as
     fun d i []  = return []
     fun d i [x] = return [x]
     fun 0 i as  = return $ mergesort as
-    fun d i as  = dacPar' (fun (d-1) j) merge xs ys
+    fun d i as  = dacPar' (fun (d-1) (hf i)) merge xs ys
       where 
         (xs, ys) = splitAt i as
-        j        = i `div` 2
         
 
 -- * Helpers
@@ -246,7 +244,7 @@ jackknife f = Main.parMap' 2 f . resamples 500
 sortfun :: (NFData a, Ord a) => [a] -> [a]
 -- sortfun = mergesort
 -- sortfun = mergesortPseq
-sortfun = mergesortRD' 3
+sortfun = mergesortRD' 2
 -- sortfun = mergesortP
 -- sortfun = mergesortPD' 3
 
