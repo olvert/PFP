@@ -14,6 +14,11 @@ import Utils
 -- I suspect it comes from Bryan O'Sullivan, author of Criterion
 
 
+-- * Type Signatures
+
+-- | Used to reduce length of type signatures slightly
+type TJoin b = [b] -> [b] -> [b]
+
 -- * Predefined
 
 data T a = T !a !Int
@@ -37,7 +42,7 @@ crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 -- * Parallell Map (Assignment 1)
 
 -- | Parallel map utilising par with depth
-parMap :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
+parMap :: (NFData b) => Int -> (a -> b) -> [a] -> [b]
 parMap d f [] = []
 parMap 0 f as = map f as
 parMap d f as = par (rnf ys') (xs' ++ ys')
@@ -46,7 +51,7 @@ parMap d f as = par (rnf ys') (xs' ++ ys')
         ys'      = Main.parMap (d-1) f ys
 
 -- | Parallel map utilising rpar with depth
-parMapRD :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
+parMapRD :: (NFData b) => Int -> (a -> b) -> [a] -> [b]
 parMapRD d f [] = []
 parMapRD 0 f as = map f as
 parMapRD d f as = runEval $ do
@@ -57,10 +62,10 @@ parMapRD d f as = runEval $ do
   
   
 -- | Parallel map utilising rpar with depth
-parMapRD' :: (NFData b) => Int -> ([a] -> b) -> [[a]] -> [b]
+parMapRD' :: (NFData b) => Int -> (a -> b) -> [a] -> [b]
 parMapRD' d f as = runEval $ fun d (mdl as) f as
   where 
-    fun :: (NFData b) => Int -> Int -> ([a] -> b) -> [[a]] -> Eval [b]
+    fun :: (NFData b) => Int -> Int -> (a -> b) -> [a] -> Eval [b]
     fun d i f [] = return []
     fun 0 i f as = return $ force $ map f as
     fun d i f as = do
@@ -71,7 +76,7 @@ parMapRD' d f as = runEval $ fun d (mdl as) f as
       liftM2 (++) xs' ys'
 
 -- | Parallell map utilising Strategies
-parMapS :: (NFData b) => ([a] -> b) -> [[a]] -> [b]
+parMapS :: (NFData b) => (a -> b) -> [a] -> [b]
 parMapS = Strategies.parMap rdeepseq
 
 -- | Parallell map utilising the Par monad
@@ -161,7 +166,7 @@ mergesortPD 0 as  = mergesort as
 -- * Helpers
 
 -- | Helper function encapsulating the DaC pattern with the Par monad
-dacPar :: (NFData b) => ([a] -> [b]) -> ([b] -> [b] -> [b]) -> [a] -> Par [b]
+dacPar :: (NFData b) => ([a] -> [b]) -> TJoin b -> [a] -> Par [b]
 dacPar f m as = do
   let (xs, ys) = splitInHalf as
   xs' <- new
@@ -173,7 +178,7 @@ dacPar f m as = do
   return $ m xs'' ys''
 
 -- | Helper function encapsulating the DaC pattern with the Par monad
-dacPar' :: (NFData b) => ([a] -> Par [b]) -> ([b] -> [b] -> [b]) -> [a] -> [a] -> Par [b]
+dacPar' :: (NFData b) => ([a] -> Par [b]) -> TJoin b -> [a] -> [a] -> Par [b]
 dacPar' f m xs ys = do
   xs'  <- new
   ys'  <- new
@@ -185,7 +190,7 @@ dacPar' f m xs ys = do
 
 
 -- | Helper function encapsulating the DaC pattern using par and pseq
-dacPseq :: (NFData b) => ([a] -> [b]) -> ([b] -> [b] -> [b]) -> [a] -> [b]
+dacPseq :: (NFData b) => ([a] -> [b]) -> TJoin b -> [a] -> [b]
 dacPseq f m as = par (rnf ys') (pseq xs' (m xs' ys'))
   where (xs, ys) = splitInHalf as
         xs'      = f xs
