@@ -83,10 +83,10 @@ parMapRD' d f as = runEval $ fun d (mdl as) f as
     fun 0 i f as = return $ force $ map f as
     fun d i f as = do
       let (xs, ys) = splitAt i as
-      let eval as  = fmap (rpar . force) (fun (d-1) (hf i) f as)
+      let eval as  = join $ fmap (rpar . force) (fun (d-1) (hf i) f as)
       ys' <- eval ys
       xs' <- eval xs
-      liftM2 (++) xs' ys'
+      return $ xs' ++ ys'
 
 -- | Parallell map utilising Strategies
 parMapS :: (NFData b) => (a -> b) -> [a] -> [b]
@@ -176,6 +176,15 @@ mergesortP []  = []
 mergesortP [x] = [x]
 mergesortP as  = runPar $ dacPar mergesortP merge as
 
+-- | Parallel mergesort utilising the Par monad
+mergesortP' :: (NFData a, Ord a) => [a] -> [a]
+mergesortP' as = runPar $ fun as
+  where
+    fun []  = return []
+    fun [x] = return [x]
+    fun as  = dacPar' fun merge xs ys
+      where (xs, ys) = splitInHalf as
+
 -- | Parallel mergesort utilising the Par monad with depth
 mergesortPD :: (NFData a, Ord a) => Int -> [a] -> [a]
 mergesortPD d []  = []
@@ -189,7 +198,7 @@ mergesortPD' d as = runPar $ fun d (mdl as) as
   where
     fun d i []  = return []
     fun d i [x] = return [x]
-    fun 0 i as  = return $ mergesort as
+    fun 0 i as  = return $ mergesort' (hf i) as
     fun d i as  = dacPar' (fun (d-1) (hf i)) merge xs ys
       where 
         (xs, ys) = splitAt i as
@@ -214,8 +223,8 @@ dacPar' :: (NFData b) => ([a] -> Par [b]) -> TJoin b -> [a] -> [a] -> Par [b]
 dacPar' f m xs ys = do
   xs'  <- new
   ys'  <- new
-  fork $ join $ fmap (put xs') (f xs)
-  fork $ join $ fmap (put ys') (f ys)
+  fork $ join $ fmap (put xs' . force) (f xs)
+  fork $ join $ fmap (put ys' . force) (f ys)
   xs'' <- get xs'
   ys'' <- get ys'
   return $ m xs'' ys'' 
@@ -234,19 +243,19 @@ dacPseq f m as = par (rnf ys') (pseq xs' (m xs' ys'))
 -- | Placeholder for current map strategy
 jackknife :: (NFData b) => ([a] -> b) -> [a] -> [b]
 -- jackknife f = map f . resamples 500
-jackknife f = Main.parMap' 2 f . resamples 500
+-- jackknife f = Main.parMap' 2 f . resamples 500
 -- jackknife f = parMapRD' 2 f . resamples 500
 -- jackknife f = parMapS f . resamples 500
 -- jackknife f = parMapP f . resamples 500
--- jackknife f = parMapPD 3 f . resamples 500
+jackknife f = parMapPD' 2 f . resamples 500
 
 -- | Placeholder for current sort strategy
 sortfun :: (NFData a, Ord a) => [a] -> [a]
 -- sortfun = mergesort
 -- sortfun = mergesortPseq
-sortfun = mergesortRD' 2
--- sortfun = mergesortP
--- sortfun = mergesortPD' 3
+-- sortfun = mergesortRD' 2
+sortfun = mergesortP
+--sortfun = mergesortPD' 3
 
 -- | Main function for sort benchmark
 sortBench :: IO ()
@@ -274,7 +283,7 @@ jackBench = do
          ]
 
 main :: IO ()
-main = sortBench
 -- main = jackBench
+main = sortBench
 
 
