@@ -135,10 +135,11 @@ mergesort xs  = let (a, b) = splitInHalf xs
 mergesort' :: Ord a => Int -> [a] -> [a]
 mergesort' i []  = []
 mergesort' i [x] = [x]
-mergesort' i xs | i < 2     = merge [head xs] (mergesort' 0 $ tail xs)
-                | otherwise = let (a, b) = splitAt i xs
-                              in merge (mergesort' (hf i) a) (mergesort' (hf i) b)
-
+mergesort' i xs  = merge (mergesort' hf' a) (mergesort' hf' b)
+  where 
+    (a, b) = splitAt i xs
+    hf' = hf i + mod i 2
+   
 -- | Parallel mergesort utilising par and pseq
 mergesortPseq :: (NFData a, Ord a) => [a] -> [a]
 mergesortPseq [] = []
@@ -254,8 +255,8 @@ sortfun :: (NFData a, Ord a) => [a] -> [a]
 -- sortfun = mergesort
 -- sortfun = mergesortPseq
 -- sortfun = mergesortRD' 2
-sortfun = mergesortP
---sortfun = mergesortPD' 3
+-- sortfun = mergesortP
+sortfun = mergesortPD' 2
 
 -- | Main function for sort benchmark
 sortBench :: IO ()
