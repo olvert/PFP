@@ -98,7 +98,9 @@ refine(M) ->
     end.
 
 refine_rows(M) ->
-    lists:map(fun refine_row/1,M).
+  %pmap(fun refine_row/1, M).
+  lists:map(fun refine_row/1,M).
+  %parmap(fun refine_row/1, M). -- does not work, probably bc error handling
 
 refine_row(Row) ->
     Entries = entries(Row),
@@ -222,7 +224,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
--define(EXECUTIONS,100).
+-define(EXECUTIONS,1).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
@@ -248,3 +250,40 @@ valid_row(Row) ->
 
 valid_solution(M) ->
     valid_rows(M) andalso valid_rows(transpose(M)) andalso valid_rows(blocks(M)).
+  
+  
+%%% Map
+%%% Implementation taken from:
+%%% https://gist.github.com/nicklasos/c177478b972e74872b3b
+
+pmap(F, L) ->
+  S = self(),
+  Pids = lists:map(fun(I) -> spawn(fun() -> pmap_f(S, F, I) end) end, L),
+  pmap_gather(Pids).
+
+pmap_gather([H|T]) ->
+  receive
+    {H, Ret} -> [Ret|pmap_gather(T)]
+  end;
+pmap_gather([]) ->
+  [].
+
+pmap_f(Parent, F, I) ->
+  Parent ! {self(), (catch F(I))}.
+  
+parmap(F, L) ->
+  Parent = self(),
+  [receive {Pid, Result} -> Result end || Pid <- [spawn(fun() -> Parent ! {self(), F(X)} end) || X <- L]].
+
+
+% Profile specific Puzzle
+profile(I) ->
+  {ok, Puzzles} = file:consult("problems.txt"),
+  {Name, M} = lists:nth(I, Puzzles),
+  {Name, solve(M)}.
+
+% Test function for parallel map implementations
+test_pmap() ->
+  List = [1, 2, 3],
+  pmap(fun(E) -> E+1 end, List).
+  

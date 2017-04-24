@@ -1,3 +1,24 @@
+## Percept
+
+### Run profile
+Run ```percept:profile("<dest-file>.dat", {<module>, <fun>, [<args>]}, [procs]).```
+
+In our case: ```percept:profile("profile.dat", {sudoku, benchmarks, []}, [procs]).```)
+
+### Data viewing
+Analyze by running ```percept:analyze("<source-file>.dat").```
+
+In our case ```percept:analyze("profile.dat").```
+
+View results by running ``` percept:start_webserver(8888).```
+
+## Misc
+
+See available OS threads by running ```erlang:system_info(schedulers).```
+
+The message "invalid state flow" when analyzing with percept is nothing to
+worry about: [See mail](http://erlang.org/pipermail/erlang-questions/2010-September/053457.html).
+
 ## Functions
 
 ### fill/1
