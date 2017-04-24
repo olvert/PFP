@@ -7,6 +7,15 @@
 ## Attempts
 
 ### Parallelizing refine
+As suggested in the PM, we started by parallelizing the refinement of rows. We
+did this by simply replacing the map in *refine_rows* with a parallel one. As
+one might have expected, the results were worse than the linear one. When
+analyzing the processes in percept, we can see that the lifetime for the
+spawned processes is really small. As another example, when solving the
+"diabolical" puzzle just once, we are creating 17283 processes. From this, we
+draw the conclusion that the task we are parallelizing is too small. We need to
+parallelize a bigger "chunk" of the problem.
+
 
 ## Explanation of parallel map
 In parts of the lab, we have used an existing implementation of a parallel map

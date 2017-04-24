@@ -224,7 +224,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
--define(EXECUTIONS,1).
+-define(EXECUTIONS,10000).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
@@ -260,6 +260,7 @@ pmap(F, L) ->
   S = self(),
   Pids = lists:map(fun(I) -> spawn(fun() -> pmap_f(S, F, I) end) end, L),
   pmap_gather(Pids).
+  %pmap_gather_no(length(Pids)).
 
 pmap_gather([H|T]) ->
   receive
@@ -267,6 +268,13 @@ pmap_gather([H|T]) ->
   end;
 pmap_gather([]) ->
   [].
+
+pmap_gather_no(0) ->
+  [];
+pmap_gather_no(N) ->
+  receive
+    {_, Ret} -> [Ret|pmap_gather_no(N-1)]
+  end.
 
 pmap_f(Parent, F, I) ->
   Parent ! {self(), (catch F(I))}.
@@ -284,6 +292,9 @@ profile(I) ->
 
 % Test function for parallel map implementations
 test_pmap() ->
-  List = [1, 2, 3],
-  pmap(fun(E) -> E+1 end, List).
-  
+  List = repeat(fun() -> 1000 end),
+  pmap(fun factorial/1, List).
+
+% Test
+factorial(0) -> 1;
+factorial(N) -> N * factorial(N-1).  
