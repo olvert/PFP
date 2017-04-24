@@ -31,6 +31,7 @@ four logical cores.
   {extreme,8.711},
   {seventeen,30.626}]}
 ```
+**Geometric mean original:** 74.708
 
 **Benchmark parallelized:**
 ```
@@ -43,6 +44,7 @@ four logical cores.
   {extreme,22.894},
   {seventeen,469.346}]}
 ```
+**Geometric mean parallelized:** 118.377
 
 Overall, the parallelized solution is still a lot slower since it is
 bruteforcing alot of unecessary work.
