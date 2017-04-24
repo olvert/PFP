@@ -98,8 +98,8 @@ refine(M) ->
     end.
 
 refine_rows(M) ->
-  %pmap(fun refine_row/1, M).
-  lists:map(fun refine_row/1,M).
+  pmap(fun refine_row/1, M).
+  %lists:map(fun refine_row/1,M).
   %parmap(fun refine_row/1, M). -- does not work, probably bc error handling
 
 refine_row(Row) ->
