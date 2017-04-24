@@ -98,8 +98,8 @@ refine(M) ->
     end.
 
 refine_rows(M) ->
-  pmap(fun refine_row/1, M).
-  %lists:map(fun refine_row/1,M).
+  %pmap(fun refine_row/1, M).
+  lists:map(fun refine_row/1,M).
   %parmap(fun refine_row/1, M). -- does not work, probably bc error handling
 
 refine_row(Row) ->
@@ -168,7 +168,7 @@ guess(M) ->
 %% given a matrix, guess an element to form a list of possible
 %% extended matrices, easiest problem first.
 
-guesses(M) ->
+  guesses(M) ->
     {I,J,Guesses} = guess(M),
     Ms = [catch refine(update_element(M,I,J,G)) || G <- Guesses],
     SortedGuesses =
@@ -200,7 +200,17 @@ solve(M) ->
 	    Solution;
 	false ->
 	    exit({invalid_solution,Solution})
+    end.  
+
+solve_1(M) ->
+    Solution = solve_refined_all(refine(fill(M))),
+    case valid_solution(Solution) of
+	true ->
+	    Solution;
+	false ->
+	    exit({invalid_solution,Solution})
     end.
+
 
 solve_refined(M) ->
     case solved(M) of
@@ -208,6 +218,24 @@ solve_refined(M) ->
 	    M;
 	false ->
 	    solve_one(guesses(M))
+    end.  
+
+solve_refined_all(M) ->
+    case solved(M) of
+	true ->
+	    M;
+	false ->
+	    solve_all(guesses(M))
+    end.  
+
+solve_all([]) ->
+    exit(no_solution);
+solve_all(Ms) ->
+    Solutions = pmap(fun solve_refined_all/1, Ms),
+    Valid = lists:filter(fun solved/1, Solutions),
+    case Valid of
+      []    -> exit(no_solution);
+      [H|_] -> H
     end.
 
 solve_one([]) ->
@@ -224,7 +252,7 @@ solve_one([M|Ms]) ->
 
 %% benchmarks
 
--define(EXECUTIONS,10000).
+-define(EXECUTIONS,1).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
@@ -234,7 +262,7 @@ repeat(F) ->
     [F() || _ <- lists:seq(1,?EXECUTIONS)].
 
 benchmarks(Puzzles) ->
-    [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
+    [{Name,bm(fun()->solve_1(M) end)} || {Name,M} <- Puzzles].
 
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
@@ -259,8 +287,8 @@ valid_solution(M) ->
 pmap(F, L) ->
   S = self(),
   Pids = lists:map(fun(I) -> spawn(fun() -> pmap_f(S, F, I) end) end, L),
-  pmap_gather(Pids).
-  %pmap_gather_no(length(Pids)).
+  %pmap_gather(Pids).
+  pmap_gather_noe(length(Pids)).
 
 pmap_gather([H|T]) ->
   receive
@@ -276,24 +304,28 @@ pmap_gather_no(N) ->
     {_, Ret} -> [Ret|pmap_gather_no(N-1)]
   end.
 
+pmap_gather_noe(0) ->
+  [];
+pmap_gather_noe(N) ->
+  receive
+    {_, {'EXIT',no_solution}} -> pmap_gather_noe(N-1);
+    {_, Ret}                  -> [Ret|pmap_gather_noe(N-1)]
+  end.
+
 pmap_f(Parent, F, I) ->
   Parent ! {self(), (catch F(I))}.
-  
-parmap(F, L) ->
-  Parent = self(),
-  [receive {Pid, Result} -> Result end || Pid <- [spawn(fun() -> Parent ! {self(), F(X)} end) || X <- L]].
-
 
 % Profile specific Puzzle
 profile(I) ->
   {ok, Puzzles} = file:consult("problems.txt"),
   {Name, M} = lists:nth(I, Puzzles),
-  {Name, solve(M)}.
+  {Name, solve_1(M)}.
 
 % Test function for parallel map implementations
 test_pmap() ->
-  List = repeat(fun() -> 1000 end),
-  pmap(fun factorial/1, List).
+  %List = repeat(fun() -> rand:uniform(10000) end),
+  List = [1, 2, {'EXIT',no_solution}, 3],
+  pmap(fun(E) -> E end, List).
 
 % Test
 factorial(0) -> 1;
