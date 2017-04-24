@@ -98,7 +98,9 @@ refine(M) ->
     end.
 
 refine_rows(M) ->
+  %pmap(fun refine_row/1, M).
   lists:map(fun refine_row/1,M).
+  %parmap(fun refine_row/1, M). -- does not work, probably bc error handling
 
 refine_row(Row) ->
     Entries = entries(Row),
@@ -189,7 +191,7 @@ update_nth(I,X,Xs) ->
 %% 		     ?FORALL(I,choose(1,length(L)),
 %% 			     update_nth(I,lists:nth(I,L),L) == L))).
 
-%% solve a puzzle 
+%% solve a puzzle
 
 solve(M) ->
     Solution = solve_refined(refine(fill(M))),
@@ -198,9 +200,27 @@ solve(M) ->
 	    Solution;
 	false ->
 	    exit({invalid_solution,Solution})
+    end.  
+
+solve_1(M) ->
+    Solution = solve_refined_all(refine(fill(M))),
+    case valid_solution(Solution) of
+	true ->
+	    Solution;
+	false ->
+	    exit({invalid_solution,Solution})
     end.
 
+
 solve_refined(M) ->
+    case solved(M) of
+	true ->
+	    M;
+	false ->
+	    solve_one(guesses(M))
+    end.  
+
+solve_refined_all(M) ->
     case solved(M) of
 	true ->
 	    M;
@@ -209,13 +229,25 @@ solve_refined(M) ->
     end.  
 
 solve_all([]) ->
-    exit(no_solution);
+    dead_end;
 solve_all(Ms) ->
-    Solutions = pmap(fun solve_refined/1, Ms),
+    Solutions = pmap(fun solve_refined_all/1, Ms),
     Valid = lists:filter(fun valid_solution/1, Solutions),
     case Valid of
-      []    -> exit(no_solution);
+      []    -> dead_end;
       [H|_] -> H
+    end.
+
+solve_one([]) ->
+    exit(no_solution);
+solve_one([M]) ->
+    solve_refined(M);
+solve_one([M|Ms]) ->
+    case catch solve_refined(M) of
+	{'EXIT',no_solution} ->
+	    solve_one(Ms);
+	Solution ->
+	    Solution
     end.
 
 %% benchmarks
@@ -230,7 +262,7 @@ repeat(F) ->
     [F() || _ <- lists:seq(1,?EXECUTIONS)].
 
 benchmarks(Puzzles) ->
-    [{Name,bm(fun()->solve(M) end)} || {Name,M} <- Puzzles].
+    [{Name,bm(fun()->solve_1(M) end)} || {Name,M} <- Puzzles].
 
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
@@ -248,21 +280,59 @@ valid_solution(M) ->
     valid_rows(M) andalso valid_rows(transpose(M)) andalso valid_rows(blocks(M)).
   
   
-%%% Parallel map with inspiration from:
+%%% Map
+%%% Implementation taken from:
 %%% https://gist.github.com/nicklasos/c177478b972e74872b3b
 
 pmap(F, L) ->
   S = self(),
   Pids = lists:map(fun(I) -> spawn(fun() -> pmap_f(S, F, I) end) end, L),
-  pmap_gather(length(Pids)).
+  %pmap_gather(Pids).
+  pmap_gather_noe(length(Pids)).
 
-pmap_gather(0) ->
-  [];
-pmap_gather(N) ->
+pmap_gather([H|T]) ->
   receive
-    {_, {'EXIT',no_solution}} -> pmap_gather(N-1);
-    {_, Ret}                  -> [Ret|pmap_gather(N-1)]
+    {H, Ret} -> [Ret|pmap_gather(T)]
+  end;
+pmap_gather([]) ->
+  [].
+
+pmap_gather_no(0) ->
+  [];
+pmap_gather_no(N) ->
+  receive
+    {_, Ret} -> [Ret|pmap_gather_no(N-1)]
+  end.
+
+pmap_gather_noe(0) ->
+  [];
+pmap_gather_noe(N) ->
+  receive
+    {_, {'EXIT',no_solution}} -> pmap_gather_noe(N-1);
+    {_, dead_end}             -> pmap_gather_noe(N-1);
+    {_, Ret}                  -> 
+      Done = solved(Ret) and valid_solution(Ret),
+      case Done of
+        true -> [Ret];
+        false -> [Ret|pmap_gather_noe(N-1)]
+      end
   end.
 
 pmap_f(Parent, F, I) ->
   Parent ! {self(), (catch F(I))}.
+
+% Profile specific Puzzle
+profile(I) ->
+  {ok, Puzzles} = file:consult("problems.txt"),
+  {Name, M} = lists:nth(I, Puzzles),
+  {Name, solve_1(M)}.
+
+% Test function for parallel map implementations
+test_pmap() ->
+  %List = repeat(fun() -> rand:uniform(10000) end),
+  List = [1, 2, {'EXIT',no_solution}, 3],
+  pmap(fun(E) -> E end, List).
+
+% Test
+factorial(0) -> 1;
+factorial(N) -> N * factorial(N-1).  

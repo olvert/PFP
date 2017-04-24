@@ -6,6 +6,54 @@
 
 ## Attempts
 
+### Current version
+Our current implementation is some sort of bruteforce version where we have
+replace *solve_one* with a new function *solve_all*. This function evaluates
+each guess in parallel and filters out a valid solution from the result.
+
+We've also modified the parallel map in two different ways. First, it no longer
+cares about the order of the results, but only keeps track of how many results
+it expects. The order in which we receive our solutions is not important so the
+map might as well add the results to the list as soon as they are available.
+Second, it catches the *no_solution* error and excludes it from the result list.
+
+The benchmark was done on a Macbook Pro with an Intel i5 with two physical and
+four logical cores.
+
+**Benchmark original:**
+```
+{525160,
+ [{wildcat,0.366},
+  {diabolical,43.597},
+  {vegard_hanssen,89.411},
+  {challenge,6.285},
+  {challenge1,346.141},
+  {extreme,8.711},
+  {seventeen,30.626}]}
+```
+
+**Benchmark parallelized:**
+```
+{832707,
+ [{wildcat,0.34},
+  {diabolical,34.975},
+  {vegard_hanssen,93.863},
+  {challenge,4.214},
+  {challenge1,207.041},
+  {extreme,22.894},
+  {seventeen,469.346}]}
+```
+
+Overall, the parallelized solution is still a lot slower since it is
+bruteforcing alot of unecessary work.
+
+### Future version
+We have been working on another solution where the parallel map returns if it
+receives a valid result. Possibly this could increase performance by not
+searching for other solutions once one has already been found. There seems to
+be some race conditions still though so we do not have a working version until
+this deadline.
+
 ### Parallelizing refine
 As suggested in the PM, we started by parallelizing the refinement of rows. We
 did this by simply replacing the map in *refine_rows* with a parallel one. As
