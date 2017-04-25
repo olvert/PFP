@@ -192,35 +192,31 @@ update_nth(I,X,Xs) ->
 %% solve a puzzle 
 
 solve(M) ->
-    Solution = solve_refined(refine(fill(M))),
-    case valid_solution(Solution) of
-	true ->
-	    Solution;
-	false ->
-	    exit({invalid_solution,Solution})
+    Solutions = solve_refined(refine(fill(M))),
+    case Solutions of
+	     []    -> exit(no_solution);
+	     [H|_] -> case valid_solution(H) of
+                  true  -> H;
+                  false -> exit({invalid_solution,H})
+                end
     end.
+  
 
 solve_refined(M) ->
     case solved(M) of
 	true ->
-	    M;
+	    [M];
 	false ->
 	    solve_all(guesses(M))
     end.  
 
-solve_all([]) ->
-    exit(no_solution);
 solve_all(Ms) ->
-    Solutions = pmap(fun solve_refined/1, Ms),
-    Valid = lists:filter(fun valid_solution/1, Solutions),
-    case Valid of
-      []    -> exit(no_solution);
-      [H|_] -> H
-    end.
+  spawn_map(fun solve_refined/1, Ms).
+
 
 %% benchmarks
 
--define(EXECUTIONS,1).
+-define(EXECUTIONS,100).
 
 bm(F) ->
     {T,_} = timer:tc(?MODULE,repeat,[F]),
@@ -251,18 +247,43 @@ valid_solution(M) ->
 %%% Parallel map with inspiration from:
 %%% https://gist.github.com/nicklasos/c177478b972e74872b3b
 
-pmap(F, L) ->
+spawn_map(F, L) ->
   S = self(),
-  Pids = lists:map(fun(I) -> spawn(fun() -> pmap_f(S, F, I) end) end, L),
-  pmap_gather(length(Pids)).
+  R = make_ref(),
+  Pids = lists:map(fun(I) -> spawn(fun() -> pmap_f(R, S, F, I) end) end, L),
+  spawn_map_gather(R, length(Pids)).
+
+spawn_map_gather(_Ref, 0) ->
+  [];
+spawn_map_gather(Ref, N) ->
+  receive
+    {Ref, {'EXIT',no_solution}} -> spawn_map_gather(Ref, N-1);
+    {Ref, Ret}                  -> 
+      ValidSols = lists:filter(fun valid_solution/1, Ret),
+      case ValidSols of
+        [] -> spawn_map_gather(Ref, N-1);
+        _  -> ValidSols
+      end
+  end.
 
 pmap_gather(0) ->
   [];
 pmap_gather(N) ->
   receive
     {_, {'EXIT',no_solution}} -> pmap_gather(N-1);
-    {_, Ret}                  -> [Ret|pmap_gather(N-1)]
+    {_, Ret}                  -> 
+      Done = solved(Ret) andalso valid_solution(Ret),
+      case Done of
+        true  -> [Ret];
+        false -> [Ret|pmap_gather(N-1)]
+      end
   end.
 
-pmap_f(Parent, F, I) ->
-  Parent ! {self(), (catch F(I))}.
+pmap_f(Ref, Parent, F, I) ->
+  Parent ! {Ref, (catch F(I))}.
+  
+% Profile specific Puzzle
+profile(I) ->
+  {ok, Puzzles} = file:consult("problems.txt"),
+  {Name, M} = lists:nth(I, Puzzles),
+  {Name, solve(M)}.
