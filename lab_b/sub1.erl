@@ -1,7 +1,6 @@
--module(sudoku).
+-module(sub1).
 %-include_lib("eqc/include/eqc.hrl").
 -compile(export_all).
--import(worker, [start_pool/1]).
 
 %% %% generators
 
