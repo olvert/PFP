@@ -1,7 +1,6 @@
 -module(sudoku).
 %-include_lib("eqc/include/eqc.hrl").
 -compile(export_all).
--import(worker, [start_pool/1]).
 
 %% %% generators
 
@@ -193,27 +192,36 @@ update_nth(I,X,Xs) ->
 %% solve a puzzle 
 
 solve(M) ->
-    Solutions = solve_refined(refine(fill(M))),
-    case Solutions of
-	     []    -> exit(no_solution);
-	     [H|_] -> case valid_solution(H) of
-                  true  -> H;
-                  false -> exit({invalid_solution,H})
-                end
+    start_pool(3),
+    Solution = solve_refined(refine(fill(M))),
+    pool ! {stop,self()},
+    receive {pool,stopped} ->
+      case valid_solution(Solution) of
+	       true  -> Solution;
+	      false -> exit({invalid_solution,Solution})
+      end
     end.
-  
 
 solve_refined(M) ->
     case solved(M) of
 	true ->
-	    [M];
+	    M;
 	false ->
 	    solve_all(guesses(M))
     end.  
 
-solve_all(Ms) ->
-  spawn_map(fun solve_refined/1, Ms).
-
+solve_all([])         -> exit(no_solution);
+solve_all([M])        -> solve_refined(M);
+solve_all([M|[N|Ns]]) -> 
+  Rest = speculate_on_worker(fun() -> solve_refined(N) end),
+  case catch solve_refined(M) of
+    {'EXIT', no_solution} -> 
+      case catch worker_value_of(Rest) of
+        {'EXIT', no_solution} -> solve_all(Ns);
+        OtherSol -> OtherSol
+      end;
+    Sol -> Sol
+  end.
 
 %% benchmarks
 
@@ -245,46 +253,71 @@ valid_solution(M) ->
     valid_rows(M) andalso valid_rows(transpose(M)) andalso valid_rows(blocks(M)).
   
   
-%%% Parallel map with inspiration from:
-%%% https://gist.github.com/nicklasos/c177478b972e74872b3b
-
-spawn_map(F, L) ->
-  S = self(),
-  R = make_ref(),
-  Pids = lists:map(fun(I) -> spawn(fun() -> pmap_f(R, S, F, I) end) end, L),
-  spawn_map_gather(R, length(Pids)).
-
-spawn_map_gather(_Ref, 0) ->
-  [];
-spawn_map_gather(Ref, N) ->
-  receive
-    {Ref, {'EXIT',no_solution}} -> spawn_map_gather(Ref, N-1);
-    {Ref, Ret}                  -> 
-      ValidSols = lists:filter(fun valid_solution/1, Ret),
-      case ValidSols of
-        [] -> spawn_map_gather(Ref, N-1);
-        _  -> ValidSols
-      end
-  end.
-
-pmap_gather(0) ->
-  [];
-pmap_gather(N) ->
-  receive
-    {_, {'EXIT',no_solution}} -> pmap_gather(N-1);
-    {_, Ret}                  -> 
-      Done = solved(Ret) andalso valid_solution(Ret),
-      case Done of
-        true  -> [Ret];
-        false -> [Ret|pmap_gather(N-1)]
-      end
-  end.
-
-pmap_f(Ref, Parent, F, I) ->
-  Parent ! {Ref, (catch F(I))}.
-  
 % Profile specific Puzzle
 profile(I) ->
   {ok, Puzzles} = file:consult("problems.txt"),
   {Name, M} = lists:nth(I, Puzzles),
   {Name, solve(M)}.
+
+
+%% Worker pools
+start_pool(N) ->
+    true = register(pool, spawn_link(fun()->pool([worker() || _ <- lists:seq(1,N)]) end)).
+
+pool(Workers) ->
+    pool(Workers,Workers).
+
+pool(Workers,All) ->
+    receive
+	{get_worker,Pid} ->
+	    case Workers of
+		[] ->
+		    Pid ! {pool,no_worker},
+		    pool(Workers,All);
+		[W|Ws] ->
+		    Pid ! {pool,W},
+		    pool(Ws,All)
+	    end;
+	{return_worker,W} ->
+	    pool([W|Workers],All);
+	{stop,Pid} ->
+	    [unlink(W) || W <- All],
+	    [exit(W,kill) || W <- All],
+	    unregister(pool),
+	    Pid ! {pool,stopped}
+    end.
+
+worker() ->
+    spawn_link(fun work/0).
+
+work() ->
+    receive
+	{task,Pid,R,F} ->
+	    Pid ! {R, catch F()},
+	    pool ! {return_worker,self()},
+	    work()
+    end.
+
+speculate_on_worker(F) ->
+    case whereis(pool) of
+	undefined ->
+	    ok; %% we're stopping
+	Pool -> Pool ! {get_worker,self()}
+    end,
+    receive
+	{pool,no_worker} ->
+	    {not_speculating,F};
+	{pool,W} ->
+	    R = make_ref(),
+	    W ! {task,self(),R,F},
+	    {speculating,R}
+    end.
+
+worker_value_of({not_speculating,F}) ->
+    F();
+worker_value_of({speculating,R}) ->
+    receive
+	{R,X} ->
+	    X
+    end.
+
