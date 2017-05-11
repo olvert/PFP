@@ -51,6 +51,7 @@ map_reduce_balanced(Map,M,Reduce,R,Input) ->
   Reducers = wrap_reducers(Reduce, Mappeds, Indices),
   Reduceds = worker_pool(Reducers),
   kill_workers(Workers),
+  flush(),
   lists:sort(lists:flatten(Reduceds)).
 
 
@@ -86,6 +87,13 @@ spawn_workers() ->
 kill_workers(Workers) ->
   [unlink(W) || W <- Workers],
   [exit(W,kill) || W <- Workers].
+
+flush() ->
+  receive
+    _ -> flush()
+  after
+    0 -> ok
+  end.
     
 spawn_workers_on_node(Master, {Node, N}) ->
   [worker(Master, Node) || _ <- lists:seq(1, N)].
@@ -97,29 +105,28 @@ work(Master) ->
   Pid = self(),
   Master ! {available, Pid},
   receive
-    {task, Ref, F} ->
-      Master ! {result, Ref, F()},
+    {task, F} ->
+      Master ! {result, Pid, F()},
       work(Master)
   end.
 
 worker_pool(Funs) ->
-  Refs    = [assign_task(F) || F <- Funs],
-  Results = [recieve_result(Ref) || Ref <- Refs],
+  Pids    = [assign_task(F) || F <- Funs],
+  Results = [recieve_result(Pid) || Pid <- Pids],
   Results.  
   
     
 assign_task(F) ->
-  Ref = make_ref(),
   receive
     {available, Pid} ->
       io:format("Assigned task!~n"),
-      Pid ! {task, Ref, F}
+      Pid ! {task, F}
   end,
-  Ref.
+  Pid.
 
-recieve_result(Ref) ->
+recieve_result(Pid) ->
   receive
-    {result, Ref, Res} ->
+    {result, Pid, Res} ->
       io:format("Received result!~n"), 
       Res
   end.
@@ -152,8 +159,7 @@ get_schedulers() ->
   Self = {node(), erlang:system_info(schedulers)-1},
   Others = [ {Node, rpc:call(Node, erlang, system_info, [schedulers])} 
            || Node <- nodes()],
-  [Self | Others].
-   
+  [Self | Others].  
 
 %% Opens the dets file
 open_dets() ->
