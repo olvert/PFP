@@ -251,16 +251,9 @@ valid_row(Row) ->
 
 valid_solution(M) ->
     valid_rows(M) andalso valid_rows(transpose(M)) andalso valid_rows(blocks(M)).
-  
-  
-% Profile specific Puzzle
-profile(I) ->
-  {ok, Puzzles} = file:consult("problems.txt"),
-  {Name, M} = lists:nth(I, Puzzles),
-  {Name, solve(M)}.
-
 
 %% Worker pools
+%% Code taken from Erlang exercise (sat.erl)
 start_pool(N) ->
     true = register(pool, spawn_link(fun()->pool([worker() || _ <- lists:seq(1,N)]) end)).
 

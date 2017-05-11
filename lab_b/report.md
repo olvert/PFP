@@ -1,10 +1,37 @@
-# DAT280 – Lab B: “Sudoku in Erlang”
+# DAT280 – Lab B: “Sudoku in Erlang”, Resubmission
 
 *Olle Svensson (ollesv@student.chalmers.se)*
 
 *Agazi Berihu (agazi@student.chalmers.se)*
 
 ## Attempts
+In this version we removed the parallel map altogether and replaced it with the
+worker pool from the exercise. By switching to a worker pool, we are getting
+really good granularity control in the sense that we are not using any more
+processes than we have logical cores, and as soon as a process is done with
+some work it will be given new work if there is any. By this we are utilizing
+our cores in a more efficient way and are getting results or sub-results faster
+than by having hundreds or thousands of processes sharing the cores.
+
+The code utilizing the worker pool is found in
+the *solve_all* method and works in the following way:
+
+1. If we have a list of sub-problems (partially solved matrices), evaluate the
+second element in parallel and evaluate the first element in the current
+process.
+2. If the first element didn't give a solution, check the result of the second
+element. If neither of them returned solutions, continue with the rest of the
+list.
+
+We found this approach with a more depth-first strategy to give slightly better
+performance compared to a more breadth-first strategy where we evaluated the 
+first element in the current process and the rest of the list in parallel.
+
+We also tried to add further granularity control by using *hard* and 
+introducing a threshold value that decided whether a sub-problem should be 
+solved in parallel or not. Basically, if a sub-problem was below the threshold,
+it was not evaluated in parallel and vice versa. However, we were unable to find
+a threshold value that increased our performance so this addition was discarded.
 
 ### Improved version
 

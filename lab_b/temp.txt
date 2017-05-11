@@ -1,0 +1,10 @@
+Basic worker pool:
+
+{36639695,
+ [{wildcat,0.43161},
+  {diabolical,28.42531},
+  {vegard_hanssen,72.3781},
+  {challenge,5.19045},
+  {challenge1,205.1721},
+  {extreme,17.01659},
+  {seventeen,37.78254}]}

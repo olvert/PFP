@@ -32,3 +32,10 @@ page_rank_dist() ->
     Urls = dets:foldl(fun({K,_},Keys)->[K|Keys] end,[],web),
     master:map_reduce_dist(fun map/2, 32, fun reduce/2, 32, 
 			      [{Url,ok} || Url <- Urls]).
+          
+page_rank_balanced() ->
+    dets:open_file(web,[{file,"web.dat"}]),
+    Urls = dets:foldl(fun({K,_},Keys)->[K|Keys] end,[],web),
+    master:map_reduce_balanced(fun map/2, 4, fun reduce/2, 4, 
+			      [{Url,ok} || Url <- Urls]).
+
