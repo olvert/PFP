@@ -42,18 +42,16 @@ spawn_reducer(Node,Parent,Reduce,I,Mappeds) ->
 %% Solution 2: Load-balancing Map-Reduce %%
 
 map_reduce_balanced(Map,M,Reduce,R,Input) ->
-  Workers  = spawn_workers(),
-  io:format("Spawned workers: ~p~n", [Workers]),
+  Workers  = worker:spawn_workers(),
   Splits   = map_reduce:split_into(M,Input),
   Mappers  = wrap_mappers(Map, R, Splits),
-  Mappeds  = worker_pool(Mappers),
+  Mappeds  = worker:worker_pool(Mappers),
   Indices  = lists:seq(0,R-1),
   Reducers = wrap_reducers(Reduce, Mappeds, Indices),
-  Reduceds = worker_pool(Reducers),
-  kill_workers(Workers),
-  flush(),
+  Reduceds = worker:worker_pool(Reducers),
+  worker:kill_workers(Workers),
+  worker:flush(),
   lists:sort(lists:flatten(Reduceds)).
-
 
 % Wrap mappers in anon funs for worker pool
 wrap_mappers(Map, R, Splits) ->
@@ -77,62 +75,26 @@ wrap_reducer(Reduce, I, Mappeds) ->
     map_reduce:reduce_seq(Reduce,Inputs)
   end.
 
-%% Worker pool %%
+%% Solution 3: Fault-tolerant Map-Reduce %%
 
-spawn_workers() ->
-  Master  = self(),
-  Workers = [spawn_workers_on_node(Master, S) || S <- get_schedulers()],
-  lists:flatten(Workers).
-
-kill_workers(Workers) ->
-  [unlink(W) || W <- Workers],
-  [exit(W,kill) || W <- Workers].
-
-flush() ->
+map_reduce_fault(Map,M,Reduce,R,Input) ->
+  fault_worker:spawn_pool(),
   receive
-    _ -> flush()
-  after
-    0 -> ok
-  end.
-    
-spawn_workers_on_node(Master, {Node, N}) ->
-  [worker(Master, Node) || _ <- lists:seq(1, N)].
-
-worker(Master, Node) ->
-  spawn_link(Node, master, work, [Master]).
-
-work(Master) ->
-  Pid = self(),
-  Master ! {available, Pid},
-  receive
-    {task, F} ->
-      Master ! {result, Pid, F()},
-      work(Master)
-  end.
-
-worker_pool(Funs) ->
-  Pids    = [assign_task(F) || F <- Funs],
-  Results = [recieve_result(Pid) || Pid <- Pids],
-  Results.  
-  
-    
-assign_task(F) ->
-  receive
-    {available, Pid} ->
-      io:format("Assigned task!~n"),
-      Pid ! {task, F}
+    {pool, registered} -> ok
   end,
-  Pid.
-
-recieve_result(Pid) ->
+  Splits   = map_reduce:split_into(M,Input),  
+  Mappers  = wrap_mappers(Map, R, Splits),
+  Mappeds  = fault_worker:worker_pool(Mappers),
+  Indices  = lists:seq(0,R-1),
+  Reducers = wrap_reducers(Reduce, Mappeds, Indices),
+  Reduceds = fault_worker:worker_pool(Reducers),
+  global:send(pool, {stop}),
   receive
-    {result, Pid, Res} ->
-      io:format("Received result!~n"), 
-      Res
-  end.
+    {pool, stopped} -> ok
+  end,
+  global:unregister_name(master),
+  lists:sort(lists:flatten(Reduceds)).
 
-test_list() ->
-  [fun() -> ok1 end, fun() -> ok2 end].
 
 %% Helpers %%
 
@@ -146,24 +108,8 @@ get_inputs(I, Mappeds) ->
 
 %% Benchmark one of the solutions
 bench() ->
-  {T, _} = timer:tc(page_rank, page_rank_balanced, []),
-  %{T, V}.
+  {T, _} = timer:tc(page_rank, page_rank_fault, []),
   io:format("Time: ~pms.~n", [T/1000]).
-  
-%% Opens the dets file on all nodes
-init_dets() ->
-  [ rpc:call(Node, master, open_dets, []) || Node <- all_nodes()].
-
-%% Get number of available schedulers from each node
-get_schedulers() ->
-  Self = {node(), erlang:system_info(schedulers)-1},
-  Others = [ {Node, rpc:call(Node, erlang, system_info, [schedulers])} 
-           || Node <- nodes()],
-  [Self | Others].  
-
-%% Opens the dets file
-open_dets() ->
-  dets:open_file(web,[{file,"web.dat"}]).
 
 %% Return all available nodes
 all_nodes() -> 
