@@ -7,18 +7,18 @@ import Criterion.Main
 import Control.Monad
 
 main :: IO ()
---main = standardTest
-main = repaTest
+main = standardTest
+--main = repaTest
 --main = repaMain
 --main = standardMain
 
 repaTest :: IO ()
 repaTest = do
-  res <- RepaStock.buySell $ parse $ indices inputLarge
+  res <- RepaStock.buySell $ parse $ indices inputSmall
   print res
   
 standardTest :: IO ()
-standardTest = print $ Stock.buySell inputLarge
+standardTest = print $ Stock.buySell inputSmall
 
 repaMain :: IO ()
 repaMain = 

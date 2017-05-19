@@ -13,24 +13,28 @@ buySell :: [Int] -> Result
 buySell days = local defaultRes $ indices days
   where 
     local l [] = l
-    local l (d:days) = 
-      let l' = sell d days in
-      if profit l' >= profit l then local l' days
-      else local l days
+    local l (d:days) = let l' = sell d days in local (maxResult l l') days
 
 -- | Given a buy day returns the optimal sell day and profit
 sell :: Day -> [Day] -> Result
-sell (i, b) days = let (j, s) = foldl' local (0,0) days in (i, j, s - b)
-  where local a b = if snd a >= snd b then a else b
+sell (i, b) days = let (j, s) = foldl' maxDay (0,0) days in (i, j, s - b)
       
 -- | Default result value
 defaultRes :: Result
 defaultRes = (0, 0, 0)
 
--- | Returns proft given result
-profit :: Result -> Int
-profit (b, s, p) = p
-
 -- | Adds indices to stock values      
 indices :: [a] -> [(Int, a)]
 indices = zip [0..]
+
+-- | Returns 'max' of two days
+maxDay :: Day -> Day -> Day
+maxDay d1 d2 = if snd d1 >= snd d2 then d1 else d2
+
+-- | Returns 'max' of two results
+maxResult :: Result -> Result -> Result
+maxResult r1 r2 = if profit r1 > profit r2 then r1 else r2
+
+-- | Returns proft given result
+profit :: Result -> Int
+profit (b, s, p) = p
