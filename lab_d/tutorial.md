@@ -124,10 +124,10 @@ class NFData a where
   rnf :: a -> ()
   rnf a = a `seq` ()
 ```
-The rnf function which is defined in Control.DeepSeq module stands for "reduce to normal-form." It fully evaluates it fully evaluates a given argument. In the next section we will experiment with rnf.
+The rnf function which is defined in Control.DeepSeq module stands for "reduce to normal-form." It fully evaluates a given argument and as it can seen form the definition above returns (). In the next section we will experiment with rnf.
 
 ### 3. Forcing lazzy evaluation
-To observe how lazzy evaluation can hurt parallelisation lets consider the quick sort implentation. 
+To observe how lazzy evaluation can hurt parallelisation let us consider the quick sort implentation in Haskell. 
 
 ```
 --tutorial2.hs
@@ -161,7 +161,8 @@ randomInts =
     take 200000 (randoms (mkStdGen 211570155))
     :: [Integer]
 ```
-In the above code snippet(Inspired from Chalmers Parallel Functional Programming Slides), the qsort function is the general quick sort which doesn't incorporate any parallelisation. The psort function parallelizes the quick sort by using par operation. Finally the psort_ which uses rnf operation. To run the previous code:
+
+In the above code snippet (which is inspired from Chalmers Parallel Functional Programming Slides), the qsort function is the general quick sort which doesn't incorporate any parallelisation. The psort function parallelizes the quick sort by using par operation. Finally the psort_ which uses rnf operation. To run the previous code:
 
 
 ```
@@ -201,7 +202,7 @@ std dev              25.23 ms   (67.99 as .. 27.30 ms)
 variance introduced by outliers: 20% (moderately inflated)
 ```
 
-From the result we can observe that psort_ which forces the lazy evalution got a better benchmark than the parallised one. Thus, even though laziness adds modularity for parallel programming, it is not straight forward and easy to use.
+From the result we can observe that psort_ which forces the lazy evalution got a better benchmark (373.0 ms) than the parallised one (431.7 ms). Thus, even though laziness adds modularity for parallel programming, it does not always help improve perfomance.
 
 
 #### Resources used to prepare this tutorial
