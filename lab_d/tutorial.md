@@ -79,7 +79,7 @@ runEval $ do
 ```
 In the above implementation, fib 14 and fib 21 are evaluated in parallel. Since we are using the rpar, the return does not wait for the evaluation of fib 14 and fib 21 to complete, and it should run.
 
-To try those examples (we assume the file is saved as tutorial.hs), first it has to be compiled in parallel by adding -threaded flag. This flag tells the compiler to use GHC parallelism. Then we run our biinary with two cores, which is enforece by the flags +RTS -N2.
+To try those examples (we assume the file is saved as tutorial.hs), first it has to be compiled in parallel by adding -threaded flag. This flag tells the compiler to use GHC parallelism. Then we run our binary with two cores, which is enforced by the flags +RTS -N2.
 
 ```
 $ ghc -O2 tutorial.hs -threaded
@@ -93,7 +93,8 @@ runEval $ do
     b <- rseq (fib 21)
     return (a,b)
 ```
-This variant of combination rpar and rseq solves the both fibonacies in parallel, but since we used the rseq to get the second evaluation, the return waits for evaluation of the second fibonacie to finish. After fib 21 is gave result, it will return.
+
+This variant of combination rpar and rseq solves the both Fibonacci's in parallel, but since we used the rseq to get the second evaluation, the return waits for evaluation of the second Fibonacci to finish. After fib 21 gave the result, it will return.
 
 ##### Third variant uses both rpar and rseq.
 ```
@@ -103,7 +104,7 @@ runEval $ do
     rseq a
     return (a,b)
 ```
-This is similar to the previous vairiant, but we have added rseq a, which tells the return to wait for evaluation of fib 14. 
+This is similar to the previous variant, but we have added rseq a, which tells the return to wait for the evaluation of fib 14. 
 
 The following is similar with the previous one, where the return waits for both evaluations before returning.
 
@@ -115,7 +116,7 @@ runEval $ do
     rseq b
     return (a,b)
 ```
-Depending on the problem we are trying to solve, we can use the different combination of rpar and rseq. For instance, in the previous examples we have to decide whether to go sequentially or parallelly. Thus it could hurt the performance of the parallel program.
+Depending on the problem we are trying to solve, we can use the different combination of rpar and rseq. For instance, in the previous examples, we have to decide whether to go sequentially or parallelly. Thus it could hurt the performance of the parallel program.
 
 #### Deepseq
 
@@ -124,10 +125,10 @@ class NFData a where
   rnf :: a -> ()
   rnf a = a `seq` ()
 ```
-The rnf function which is defined in Control.DeepSeq module stands for "reduce to normal-form." It fully evaluates a given argument and as it can seen form the definition above returns (). In the next section we will experiment with rnf.
+The rnf function which is defined in Control.DeepSeq module stands for "reduce to normal-form." It fully evaluates a given argument and as it can be seen form the definition above returns (). In the next section, we will experiment with rnf.
 
 ### 3. Forcing lazzy evaluation
-To observe how lazzy evaluation can hurt parallelisation let us consider the quick sort implentation in Haskell. 
+To observe how lazy evaluation can hurt parallelisation let us consider the quick sort implementation in Haskell. 
 
 ```
 --tutorial2.hs
@@ -170,7 +171,7 @@ $ ghc -O2 tutorial2.hs -threaded
 $ ./tutorial2 +RTS -N2
 ```
 
-After benchmarking we get the following results:
+After benchmarking, we get the following results:
 
 ```
 benchmarking qsort
@@ -202,7 +203,7 @@ std dev              25.23 ms   (67.99 as .. 27.30 ms)
 variance introduced by outliers: 20% (moderately inflated)
 ```
 
-From the result we can observe that psort_ which forces the lazy evalution got a better benchmark (373.0 ms) than the parallised one (431.7 ms). Thus, even though laziness adds modularity for parallel programming, it does not always help improve perfomance.
+From the result, we can observe that psort_ which forces the lazy evaluation got a better benchmark (373.0 ms) than the parallel one (431.7 ms). Thus, even though laziness adds modularity for parallel programming, it does not always help improve performance.
 
 
 #### Resources used to prepare this tutorial
